@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: AuthGrpcService/Dockerfile
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
