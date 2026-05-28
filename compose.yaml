@@ -1,0 +1,7 @@
+﻿services:
+  authgrpcservice:
+    image: authgrpcservice
+    build:
+      context: .
+      dockerfile: AuthGrpcService/Dockerfile
+
