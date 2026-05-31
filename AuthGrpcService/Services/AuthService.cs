@@ -23,7 +23,7 @@ public class AuthService(ILogger<AuthService> logger, AppDbContext db, JwtTokenS
 
     public override async Task<JwtToken> Register(Credentials request, ServerCallContext context)
     {
-        if (db.Users.Any(u => u.Login == request.Login))
+        if (await db.Users.AnyAsync(u => u.Login == request.Login))
         {
             throw new RpcException(new Status(StatusCode.AlreadyExists, "User with this login already exists"));
         }

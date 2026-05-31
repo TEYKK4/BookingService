@@ -1,7 +1,11 @@
 using System.Text;
+using AuthGrpcService;
 using AuthGrpcService.Data;
+using AuthGrpcService.Interceptors;
 using AuthGrpcService.Models;
 using AuthGrpcService.Services;
+using AuthGrpcService.Validators;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -14,7 +18,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<JwtTokenService>();
 
-builder.Services.AddGrpc();
+builder.Services.AddScoped<IValidator<Credentials>, CredentialsValidator>();
+builder.Services.AddScoped<ValidationInterceptor>();
+
+builder.Services.AddGrpc(options =>
+{
+    options.Interceptors.Add<ValidationInterceptor>();
+});
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
 
