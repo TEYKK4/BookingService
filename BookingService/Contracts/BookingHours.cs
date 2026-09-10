@@ -1,9 +1,12 @@
+using System.Collections.Concurrent;
+
 namespace BookingService.Contracts;
 
 /// <summary>
-/// Bookings are fixed one-hour slots. That is what lets a single unique index
-/// on (RoomId, SlotStart) prevent double booking - with arbitrary time ranges
-/// we would need overlap detection instead.
+/// Bookings are fixed one-hour slots, and working hours belong to the room's own
+/// time zone - not to UTC. A range hardcoded in UTC would silently shift by an
+/// hour twice a year, because a zone's offset changes with daylight saving.
+/// Instants are still stored and compared in UTC.
 /// </summary>
 public static class BookingHours
 {
@@ -11,17 +14,44 @@ public static class BookingHours
     public const int LastHour = 19;
     public const int DaysBookableAhead = 30;
 
-    public static IEnumerable<DateTime> SlotsOn(DateOnly date)
+    private static readonly ConcurrentDictionary<string, TimeZoneInfo> Zones = new();
+
+    /// <summary>Resolves an IANA id such as "Europe/Warsaw". Cached - the lookup is not free.</summary>
+    public static TimeZoneInfo ZoneOf(string timeZoneId) =>
+        Zones.GetOrAdd(timeZoneId, TimeZoneInfo.FindSystemTimeZoneById);
+
+    /// <summary>The UTC instants of every bookable hour on one local day.</summary>
+    public static IEnumerable<DateTime> SlotsOn(DateOnly localDate, TimeZoneInfo zone)
     {
         for (var hour = FirstHour; hour <= LastHour; hour++)
         {
-            yield return new DateTime(date.Year, date.Month, date.Day, hour, 0, 0, DateTimeKind.Utc);
+            var local = localDate.ToDateTime(new TimeOnly(hour, 0));
+
+            // Swallowed by a spring-forward transition: this local hour never happens.
+            if (zone.IsInvalidTime(local))
+            {
+                continue;
+            }
+
+            yield return TimeZoneInfo.ConvertTimeToUtc(local, zone);
         }
     }
 
-    public static bool IsValidSlot(DateTime slotStart) =>
-        slotStart.Kind == DateTimeKind.Utc
-        && slotStart == new DateTime(slotStart.Year, slotStart.Month, slotStart.Day, slotStart.Hour, 0, 0, DateTimeKind.Utc)
-        && slotStart.Hour >= FirstHour
-        && slotStart.Hour <= LastHour;
+    /// <summary>True when the instant lands on a whole working hour in that zone.</summary>
+    public static bool IsValidSlot(DateTime utcSlot, TimeZoneInfo zone)
+    {
+        if (utcSlot.Kind != DateTimeKind.Utc)
+        {
+            return false;
+        }
+
+        var local = TimeZoneInfo.ConvertTimeFromUtc(utcSlot, zone);
+
+        return local.TimeOfDay == TimeSpan.FromHours(local.Hour)
+               && local.Hour >= FirstHour
+               && local.Hour <= LastHour;
+    }
+
+    public static DateOnly TodayIn(TimeZoneInfo zone) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone));
 }

@@ -40,12 +40,17 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
 
     private static int _hourOffset;
 
-    /// <summary>A fresh future slot, so tests never collide with each other.</summary>
-    private static DateTime NextFreeSlot()
+    /// <summary>
+    /// A fresh future slot for a room, taken from that room's own working hours
+    /// so the test agrees with the server about what a valid slot is.
+    /// </summary>
+    private static DateTime NextFreeSlot(string timeZoneId = "Europe/Warsaw")
     {
         var offset = Interlocked.Increment(ref _hourOffset);
-        var day = DateTime.UtcNow.Date.AddDays(1 + offset / 12);
-        return DateTime.SpecifyKind(day.AddHours(BookingHours.FirstHour + offset % 12), DateTimeKind.Utc);
+        var zone = BookingHours.ZoneOf(timeZoneId);
+        var day = BookingHours.TodayIn(zone).AddDays(1 + offset / 12);
+
+        return BookingHours.SlotsOn(day, zone).ElementAt(offset % 12);
     }
 
     [Fact]
@@ -107,13 +112,10 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
         responses.Count(r => r.StatusCode == HttpStatusCode.Conflict).ShouldBe(7);
     }
 
-    [Theory]
-    [InlineData(30)]   // not on the hour
-    [InlineData(0)]
-    public async Task Slots_must_be_whole_hours_inside_working_hours(int minutes)
+    [Fact]
+    public async Task A_slot_that_is_not_on_the_hour_is_rejected()
     {
-        var slot = DateTime.SpecifyKind(
-            DateTime.UtcNow.Date.AddDays(2).AddHours(3).AddMinutes(minutes), DateTimeKind.Utc);
+        var slot = NextFreeSlot().AddMinutes(30);
 
         var response = await ClientFor(Alice).PostAsJsonAsync("/api/bookings",
             new CreateBookingRequest(1, slot));
@@ -122,10 +124,45 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
     }
 
     [Fact]
+    public async Task An_hour_outside_the_rooms_working_day_is_rejected()
+    {
+        // 03:00 UTC is the middle of the night in every seeded room.
+        var slot = DateTime.SpecifyKind(
+            DateTime.UtcNow.Date.AddDays(2).AddHours(3), DateTimeKind.Utc);
+
+        var response = await ClientFor(Alice).PostAsJsonAsync("/api/bookings",
+            new CreateBookingRequest(1, slot));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task A_slot_valid_for_a_warsaw_room_is_refused_by_a_new_york_room()
+    {
+        // Room 4 sits in America/New_York, so Warsaw's 08:00 is the small hours there.
+        var warsawMorning = NextFreeSlot("Europe/Warsaw");
+
+        var response = await ClientFor(Alice).PostAsJsonAsync("/api/bookings",
+            new CreateBookingRequest(4, warsawMorning));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Each_room_reports_its_own_time_zone()
+    {
+        var rooms = await ClientFor().GetFromJsonAsync<List<RoomResponse>>("/api/rooms");
+
+        rooms.ShouldNotBeNull();
+        rooms.Single(r => r.Name == "Focus").TimeZoneId.ShouldBe("Europe/Warsaw");
+        rooms.Single(r => r.Name == "Training").TimeZoneId.ShouldBe("America/New_York");
+    }
+
+    [Fact]
     public async Task A_slot_in_the_past_is_rejected()
     {
-        var slot = DateTime.SpecifyKind(
-            DateTime.UtcNow.Date.AddDays(-1).AddHours(BookingHours.FirstHour), DateTimeKind.Utc);
+        var zone = BookingHours.ZoneOf("Europe/Warsaw");
+        var slot = BookingHours.SlotsOn(BookingHours.TodayIn(zone).AddDays(-1), zone).First();
 
         var response = await ClientFor(Alice).PostAsJsonAsync("/api/bookings",
             new CreateBookingRequest(1, slot));
