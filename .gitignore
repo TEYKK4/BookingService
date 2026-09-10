@@ -5,5 +5,7 @@ riderModule.iml
 /_ReSharper.Caches/
 .env
 .idea/
-.claude/settings.local.json
+.claude/
 *.DotSettings.user
+node_modules/
+dist/

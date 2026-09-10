@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path="compose.yaml" />
+    <File Path="compose.override.yaml" />
+    <File Path=".env.example" />
+    <File Path="protos/auth.proto" />
+  </Folder>
+  <Project Path="AuthGrpcService/AuthGrpcService.csproj" />
+  <Project Path="BookingService/BookingService.csproj" />
+</Solution>
