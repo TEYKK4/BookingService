@@ -8,25 +8,25 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Protobuf Include="../protos/auth.proto" GrpcServices="Server" Link="Protos/auth.proto" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
         <PackageReference Include="FluentValidation" Version="12.1.1" />
         <PackageReference Include="Grpc.AspNetCore" Version="2.64.0" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     </ItemGroup>
 
     <ItemGroup>
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
       </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\RoomBooking.Contracts\RoomBooking.Contracts.csproj" />
     </ItemGroup>
 
 </Project>

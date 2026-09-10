@@ -7,6 +7,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["BookingService/BookingService.csproj", "BookingService/"]
+COPY ["RoomBooking.Contracts/RoomBooking.Contracts.csproj", "RoomBooking.Contracts/"]
 RUN dotnet restore "BookingService/BookingService.csproj"
 COPY . .
 WORKDIR "/src/BookingService"
