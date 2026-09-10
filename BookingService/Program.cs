@@ -77,4 +77,3 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
 
-public partial class Program;
