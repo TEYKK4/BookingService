@@ -1,0 +1,11 @@
+# Applied automatically by `docker compose up`. Dev-only conveniences.
+services:
+  authgrpcservice:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+
+  db:
+    # Exposed so local tools (Rider, psql, pgAdmin) can reach the database.
+    # Never exposed in production - the app talks to it over the compose network.
+    ports:
+      - "5432:5432"
