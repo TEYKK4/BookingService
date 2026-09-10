@@ -22,7 +22,8 @@ public static class BookingEndpoints
             var bookings = await db.Bookings
                 .Where(b => b.UserId == userId)
                 .OrderBy(b => b.SlotStart)
-                .Select(b => new BookingResponse(b.Id, b.RoomId, b.Room.Name, b.SlotStart, b.CreatedAt))
+                .Select(b => new BookingResponse(
+                    b.Id, b.RoomId, b.Room.Name, b.Room.TimeZoneId, b.SlotStart, b.CreatedAt))
                 .ToListAsync(ct);
 
             return Results.Ok(bookings);
@@ -40,12 +41,22 @@ public static class BookingEndpoints
                 return Results.Unauthorized();
             }
 
+            var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == request.RoomId, ct);
+
+            if (room is null)
+            {
+                return Results.NotFound();
+            }
+
+            var zone = BookingHours.ZoneOf(room.TimeZoneId);
             var slotStart = DateTime.SpecifyKind(request.SlotStart.ToUniversalTime(), DateTimeKind.Utc);
 
-            if (!BookingHours.IsValidSlot(slotStart))
+            // Validated against the room's local clock, so the rule survives daylight saving.
+            if (!BookingHours.IsValidSlot(slotStart, zone))
             {
                 return Results.Problem(
-                    $"Slots are whole hours between {BookingHours.FirstHour}:00 and {BookingHours.LastHour}:00 UTC.",
+                    $"Slots are whole hours between {BookingHours.FirstHour}:00 and " +
+                    $"{BookingHours.LastHour}:00 in {room.TimeZoneId}.",
                     statusCode: StatusCodes.Status400BadRequest);
             }
 
@@ -61,21 +72,16 @@ public static class BookingEndpoints
                     statusCode: StatusCodes.Status400BadRequest);
             }
 
-            if (!await db.Rooms.AnyAsync(r => r.Id == request.RoomId, ct))
-            {
-                return Results.NotFound();
-            }
-
             // Friendly path. It does NOT prevent a double booking on its own -
             // two requests can both pass this check. The unique index does.
-            if (await db.Bookings.AnyAsync(b => b.RoomId == request.RoomId && b.SlotStart == slotStart, ct))
+            if (await db.Bookings.AnyAsync(b => b.RoomId == room.Id && b.SlotStart == slotStart, ct))
             {
                 return Results.Problem("That slot is already booked.", statusCode: StatusCodes.Status409Conflict);
             }
 
             var booking = new Models.Booking
             {
-                RoomId = request.RoomId,
+                RoomId = room.Id,
                 UserId = userId,
                 SlotStart = slotStart,
                 CreatedAt = DateTime.UtcNow,
@@ -92,16 +98,15 @@ public static class BookingEndpoints
             {
                 // Someone booked the same slot between the check above and this insert.
                 loggerFactory.CreateLogger("Bookings").LogWarning(
-                    "Race lost on room {RoomId} at {SlotStart}", request.RoomId, slotStart);
+                    "Race lost on room {RoomId} at {SlotStart}", room.Id, slotStart);
 
                 return Results.Problem("That slot is already booked.", statusCode: StatusCodes.Status409Conflict);
             }
 
-            var roomName = await db.Rooms.Where(r => r.Id == booking.RoomId).Select(r => r.Name).FirstAsync(ct);
-
             return Results.Created(
                 $"/api/bookings/{booking.Id}",
-                new BookingResponse(booking.Id, booking.RoomId, roomName, booking.SlotStart, booking.CreatedAt));
+                new BookingResponse(
+                    booking.Id, room.Id, room.Name, room.TimeZoneId, booking.SlotStart, booking.CreatedAt));
         });
 
         group.MapDelete("/{bookingId:int}", async (

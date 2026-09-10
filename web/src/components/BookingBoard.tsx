@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { api, formatUtc, today, type Booking, type Room, type Slot } from "@/lib/api"
+import {
+  api, inZone, todayIn, viewerZone,
+  type Booking, type Room, type Slot,
+} from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,16 +16,15 @@ import {
 export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
   const [rooms, setRooms] = useState<Room[]>([])
   const [roomId, setRoomId] = useState<number | null>(null)
-  const [date, setDate] = useState(today())
+  const [date, setDate] = useState<string | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [busySlot, setBusySlot] = useState<string | null>(null)
 
-  const fail = (error: unknown) => toast.error((error as Error).message)
+  const room = useMemo(() => rooms.find((r) => r.id === roomId) ?? null, [rooms, roomId])
+  const zone = room?.timeZoneId ?? viewerZone
 
-  /** The API refuses past slots, so they are not shown at all. */
-  const isPast = (slot: Slot) => new Date(slot.slotStart).getTime() < Date.now()
-  const openSlots = slots.filter((slot) => !isPast(slot))
+  const fail = (error: unknown) => toast.error((error as Error).message)
 
   const loadBookings = useCallback(async () => {
     try {
@@ -33,7 +35,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
   }, [])
 
   const loadSlots = useCallback(async () => {
-    if (roomId === null) return
+    if (roomId === null || date === null) return
     try {
       setSlots(await api.availability(roomId, date))
     } catch (error) {
@@ -51,6 +53,11 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
     loadBookings()
   }, [loadBookings])
 
+  // The calendar day is a day in the room's zone, so it follows the room.
+  useEffect(() => {
+    if (room) setDate((current) => current ?? todayIn(room.timeZoneId))
+  }, [room])
+
   useEffect(() => { loadSlots() }, [loadSlots])
 
   async function book(slot: Slot) {
@@ -59,7 +66,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
 
     try {
       await api.book(roomId, slot.slotStart)
-      toast.success(`Booked ${formatUtc.full(slot.slotStart)}`)
+      toast.success(`Booked ${inZone.full(slot.slotStart, zone)}`)
       await Promise.all([loadSlots(), loadBookings()])
     } catch (error) {
       fail(error)
@@ -79,13 +86,20 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
     }
   }
 
+  /** The API refuses past slots, so they are not shown at all. */
+  const isPast = (slot: Slot) => new Date(slot.slotStart).getTime() < Date.now()
+  const openSlots = slots.filter((slot) => !isPast(slot))
+
+  const zoneLabel = room && date ? inZone.label(`${date}T12:00:00Z`, room.timeZoneId) : ""
+  const showsAnotherZone = room !== null && room.timeZoneId !== viewerZone
+
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-4xl flex-col gap-6 p-4 md:p-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Room Booking</h1>
           <p className="text-sm text-muted-foreground">
-            Hourly slots, {formatUtc.hour("1970-01-01T08:00:00Z")}–{formatUtc.hour("1970-01-01T20:00:00Z")} UTC
+            Hourly slots, 08:00&ndash;19:00 in each room&rsquo;s own time zone
           </p>
         </div>
         <Button variant="outline" onClick={onSignOut}>Sign out</Button>
@@ -94,22 +108,30 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
       <Card>
         <CardHeader>
           <CardTitle>Find a slot</CardTitle>
-          <CardDescription>Pick a room and a day, then click a free hour.</CardDescription>
+          <CardDescription>
+            {room
+              ? <>Times shown in <strong>{room.timeZoneId}</strong>{zoneLabel && ` (${zoneLabel})`}</>
+              : "Pick a room and a day, then click a free hour."}
+          </CardDescription>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap gap-4">
-            <div className="flex min-w-48 flex-col gap-2">
+            <div className="flex min-w-56 flex-col gap-2">
               <Label>Room</Label>
               <Select
                 value={roomId?.toString() ?? ""}
-                onValueChange={(value) => setRoomId(Number(value))}
+                onValueChange={(value) => {
+                  const next = rooms.find((r) => r.id === Number(value))
+                  setRoomId(Number(value))
+                  if (next) setDate(todayIn(next.timeZoneId))
+                }}
               >
                 <SelectTrigger><SelectValue placeholder="Choose a room" /></SelectTrigger>
                 <SelectContent>
-                  {rooms.map((room) => (
-                    <SelectItem key={room.id} value={room.id.toString()}>
-                      {room.name} · {room.capacity} people
+                  {rooms.map((option) => (
+                    <SelectItem key={option.id} value={option.id.toString()}>
+                      {option.name} · {option.capacity} people · {option.timeZoneId}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -121,8 +143,8 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
               <Input
                 id="date"
                 type="date"
-                value={date}
-                min={today()}
+                value={date ?? ""}
+                min={room ? todayIn(room.timeZoneId) : undefined}
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
@@ -131,11 +153,13 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
             {openSlots.map((slot) => {
               const state = slot.isMine ? "yours" : slot.isTaken ? "taken" : "free"
-              // Compare instants, not strings: the two endpoints could format
-              // the same moment differently (trailing milliseconds, offset).
               const mine = bookings.find(
                 (b) => b.roomId === roomId
                   && Date.parse(b.slotStart) === Date.parse(slot.slotStart))
+
+              const yourTime = showsAnotherZone
+                ? ` (${inZone.hour(slot.slotStart, viewerZone)} your time)`
+                : ""
 
               return (
                 <Button
@@ -144,16 +168,24 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
                   disabled={state === "taken" || busySlot === slot.slotStart}
                   onClick={() => (mine ? cancel(mine) : book(slot))}
                   title={
-                    state === "yours" ? "Booked by you - click to cancel"
+                    (state === "yours" ? "Booked by you - click to cancel"
                       : state === "taken" ? "Booked by someone else"
-                        : "Free - click to book"
+                        : "Free - click to book") + yourTime
                   }
                 >
-                  {formatUtc.hour(slot.slotStart)}
+                  {inZone.hour(slot.slotStart, zone)}
                 </Button>
               )
             })}
           </div>
+
+          {openSlots.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {slots.length === 0
+                ? "No slots to show for this day."
+                : "Every hour for this day has already passed."}
+            </p>
+          )}
 
           {openSlots.length > 0 && (
             <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
@@ -166,15 +198,10 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
               <span className="flex items-center gap-1.5">
                 <span className="size-3 rounded-sm bg-primary" /> Yours
               </span>
+              {showsAnotherZone && (
+                <span>Your zone is {viewerZone} &mdash; hover a slot to see it</span>
+              )}
             </div>
-          )}
-
-          {openSlots.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              {slots.length === 0
-                ? "No slots to show for this day."
-                : "Every hour for this day has already passed."}
-            </p>
           )}
         </CardContent>
       </Card>
@@ -198,7 +225,9 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
             >
               <div>
                 <p className="font-medium">{booking.roomName}</p>
-                <p className="text-sm text-muted-foreground">{formatUtc.full(booking.slotStart)}</p>
+                <p className="text-sm text-muted-foreground">
+                  {inZone.full(booking.slotStart, booking.timeZoneId)} · {booking.timeZoneId}
+                </p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => cancel(booking)}>Cancel</Button>
             </div>

@@ -1,9 +1,10 @@
-export type Room = { id: number; name: string; capacity: number }
+export type Room = { id: number; name: string; capacity: number; timeZoneId: string }
 export type Slot = { slotStart: string; isTaken: boolean; isMine: boolean }
 export type Booking = {
   id: number
   roomId: number
   roomName: string
+  timeZoneId: string
   slotStart: string
   createdAt: string
 }
@@ -73,11 +74,31 @@ export const api = {
   cancel: (bookingId: number) => request<void>(`/bookings/${bookingId}`, { method: "DELETE" }),
 }
 
-/** Slots are UTC whole hours - show them as such so they match what the API validates. */
-export const formatUtc = {
-  hour: (iso: string) => `${new Date(iso).getUTCHours().toString().padStart(2, "0")}:00`,
-  date: (iso: string) => new Date(iso).toISOString().slice(0, 10),
-  full: (iso: string) => `${formatUtc.date(iso)} ${formatUtc.hour(iso)} UTC`,
+/**
+ * The API sends UTC instants. Working hours belong to the room's own zone, so
+ * every instant is rendered in that zone - never in UTC and never in the
+ * viewer's zone, the same way a hotel states check-in in the hotel's local time.
+ */
+const formatter = (timeZone: string, options: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone, ...options })
+
+export const inZone = {
+  hour: (iso: string, timeZone: string) =>
+    formatter(timeZone, { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)),
+
+  /** YYYY-MM-DD, the shape <input type="date"> and the API both expect. */
+  day: (iso: string | Date, timeZone: string) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date(iso)),
+
+  full: (iso: string, timeZone: string) =>
+    `${inZone.day(iso, timeZone)} ${inZone.hour(iso, timeZone)}`,
+
+  /** Short zone label, e.g. "CEST". */
+  label: (iso: string | Date, timeZone: string) =>
+    formatter(timeZone, { timeZoneName: "short" }).formatToParts(new Date(iso))
+      .find((part) => part.type === "timeZoneName")?.value ?? timeZone,
 }
 
-export const today = () => new Date().toISOString().slice(0, 10)
+export const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+export const todayIn = (timeZone: string) => inZone.day(new Date(), timeZone)
