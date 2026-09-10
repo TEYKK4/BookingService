@@ -131,15 +131,20 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
             {openSlots.map((slot) => {
               const state = slot.isMine ? "yours" : slot.isTaken ? "taken" : "free"
+              // Compare instants, not strings: the two endpoints could format
+              // the same moment differently (trailing milliseconds, offset).
+              const mine = bookings.find(
+                (b) => b.roomId === roomId
+                  && Date.parse(b.slotStart) === Date.parse(slot.slotStart))
 
               return (
                 <Button
                   key={slot.slotStart}
                   variant={state === "yours" ? "default" : state === "free" ? "outline" : "secondary"}
-                  disabled={state !== "free" || busySlot === slot.slotStart}
-                  onClick={() => book(slot)}
+                  disabled={state === "taken" || busySlot === slot.slotStart}
+                  onClick={() => (mine ? cancel(mine) : book(slot))}
                   title={
-                    state === "yours" ? "Booked by you"
+                    state === "yours" ? "Booked by you - click to cancel"
                       : state === "taken" ? "Booked by someone else"
                         : "Free - click to book"
                   }
@@ -156,7 +161,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
                 <span className="size-3 rounded-sm border" /> Free
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="size-3 rounded-sm bg-secondary" /> Taken
+                <span className="size-3 rounded-sm bg-secondary opacity-50" /> Taken
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="size-3 rounded-sm bg-primary" /> Yours
