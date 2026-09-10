@@ -20,6 +20,9 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
 
   const fail = (error: unknown) => toast.error((error as Error).message)
 
+  /** The API refuses past slots, so do not offer them as free. */
+  const isPast = (slot: Slot) => new Date(slot.slotStart).getTime() < Date.now()
+
   const loadBookings = useCallback(async () => {
     try {
       setBookings(await api.myBookings())
@@ -125,17 +128,39 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
           </div>
 
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-            {slots.map((slot) => (
-              <Button
-                key={slot.slotStart}
-                variant={slot.isMine ? "default" : slot.isTaken ? "secondary" : "outline"}
-                disabled={slot.isTaken || busySlot === slot.slotStart}
-                onClick={() => book(slot)}
-                title={slot.isMine ? "Yours" : slot.isTaken ? "Taken" : "Free"}
-              >
-                {formatUtc.hour(slot.slotStart)}
-              </Button>
-            ))}
+            {slots.map((slot) => {
+              const past = isPast(slot)
+              const state = slot.isMine ? "yours" : slot.isTaken ? "taken" : past ? "past" : "free"
+
+              return (
+                <Button
+                  key={slot.slotStart}
+                  variant={state === "yours" ? "default" : state === "free" ? "outline" : "secondary"}
+                  disabled={state !== "free" || busySlot === slot.slotStart}
+                  onClick={() => book(slot)}
+                  title={
+                    state === "yours" ? "Booked by you"
+                      : state === "taken" ? "Booked by someone else"
+                        : state === "past" ? "This hour has already passed"
+                          : "Free - click to book"
+                  }
+                >
+                  {formatUtc.hour(slot.slotStart)}
+                </Button>
+              )
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="size-3 rounded-sm border" /> Free
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-3 rounded-sm bg-secondary" /> Taken or past
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-3 rounded-sm bg-primary" /> Yours
+            </span>
           </div>
 
           {slots.length === 0 && (
