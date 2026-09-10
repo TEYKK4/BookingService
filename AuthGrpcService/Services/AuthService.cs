@@ -2,6 +2,7 @@ using AuthGrpcService.Data;
 using AuthGrpcService.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AuthGrpcService.Services;
 
@@ -34,8 +35,17 @@ public class AuthService(ILogger<AuthService> logger, AppDbContext db, JwtTokenS
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
         };
 
-        await db.Users.AddAsync(user);
-        await db.SaveChangesAsync();
+        db.Users.Add(user);
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            logger.LogWarning("Race condition on register for login {Login}", request.Login);
+            throw new RpcException(new Status(StatusCode.AlreadyExists, "User with this login already exists"));
+        }
 
         logger.LogInformation("User {Login} registered", user.Login);
 
