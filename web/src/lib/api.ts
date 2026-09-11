@@ -69,7 +69,8 @@ export const api = {
       body: JSON.stringify({ roomId, slotStart }),
     }),
 
-  myBookings: () => request<Booking[]>("/bookings/my"),
+  myBookings: (scope: "upcoming" | "past" = "upcoming") =>
+    request<Booking[]>(`/bookings/my?scope=${scope}`),
 
   cancel: (bookingId: number) => request<void>(`/bookings/${bookingId}`, { method: "DELETE" }),
 }

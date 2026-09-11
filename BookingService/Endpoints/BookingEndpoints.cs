@@ -12,16 +12,38 @@ public static class BookingEndpoints
     {
         var group = app.MapGroup("/api/bookings").WithTags("Bookings").RequireAuthorization();
 
-        group.MapGet("/my", async (BookingDbContext db, ClaimsPrincipal user, CancellationToken ct) =>
+        // Past bookings are history, not a to-do list: they are left out unless asked for.
+        group.MapGet("/my", async (
+            string? scope,
+            BookingDbContext db,
+            ClaimsPrincipal user,
+            CancellationToken ct) =>
         {
             if (user.IdOrNull() is not { } userId)
             {
                 return Results.Unauthorized();
             }
 
-            var bookings = await db.Bookings
-                .Where(b => b.UserId == userId)
-                .OrderBy(b => b.SlotStart)
+            // Parsed by hand because minimal APIs bind enums case-sensitively,
+            // and "?scope=past" is what a caller naturally writes.
+            if (!Enum.TryParse<BookingScope>(scope ?? nameof(BookingScope.Upcoming), ignoreCase: true, out var wanted))
+            {
+                return Results.Problem(
+                    $"scope must be one of: {string.Join(", ", Enum.GetNames<BookingScope>()).ToLowerInvariant()}.",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var now = DateTime.UtcNow;
+            var mine = db.Bookings.Where(b => b.UserId == userId);
+
+            var selected = wanted switch
+            {
+                BookingScope.Past => mine.Where(b => b.SlotStart < now).OrderByDescending(b => b.SlotStart),
+                BookingScope.All => mine.OrderBy(b => b.SlotStart),
+                _ => mine.Where(b => b.SlotStart >= now).OrderBy(b => b.SlotStart),
+            };
+
+            var bookings = await selected
                 .Select(b => new BookingResponse(
                     b.Id, b.RoomId, b.Room.Name, b.Room.TimeZoneId, b.SlotStart, b.CreatedAt))
                 .ToListAsync(ct);

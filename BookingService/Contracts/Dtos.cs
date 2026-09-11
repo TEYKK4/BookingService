@@ -13,3 +13,10 @@ public record CreateBookingRequest(int RoomId, DateTime SlotStart);
 
 public record BookingResponse(
     int Id, int RoomId, string RoomName, string TimeZoneId, DateTime SlotStart, DateTime CreatedAt);
+
+public enum BookingScope
+{
+    Upcoming,
+    Past,
+    All,
+}
