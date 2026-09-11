@@ -18,8 +18,13 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
   const [roomId, setRoomId] = useState<number | null>(null)
   const [date, setDate] = useState<string | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
-  const [bookings, setBookings] = useState<Booking[]>([])
   const [busySlot, setBusySlot] = useState<string | null>(null)
+  const [scope, setScope] = useState<"upcoming" | "past">("upcoming")
+
+  // Two lists on purpose: the grid always needs upcoming bookings to know which
+  // slot is cancellable, while the card below shows whichever scope is selected.
+  const [upcoming, setUpcoming] = useState<Booking[]>([])
+  const [listed, setListed] = useState<Booking[]>([])
 
   const room = useMemo(() => rooms.find((r) => r.id === roomId) ?? null, [rooms, roomId])
   const zone = room?.timeZoneId ?? viewerZone
@@ -28,11 +33,13 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
 
   const loadBookings = useCallback(async () => {
     try {
-      setBookings(await api.myBookings())
+      const mine = await api.myBookings("upcoming")
+      setUpcoming(mine)
+      setListed(scope === "past" ? await api.myBookings("past") : mine)
     } catch (error) {
       fail(error)
     }
-  }, [])
+  }, [scope])
 
   const loadSlots = useCallback(async () => {
     if (roomId === null || date === null) return
@@ -50,8 +57,9 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
         setRoomId((current) => current ?? loaded[0]?.id ?? null)
       })
       .catch(fail)
-    loadBookings()
-  }, [loadBookings])
+  }, [])
+
+  useEffect(() => { loadBookings() }, [loadBookings])
 
   // The calendar day is a day in the room's zone, so it follows the room.
   useEffect(() => {
@@ -153,7 +161,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
             {openSlots.map((slot) => {
               const state = slot.isMine ? "yours" : slot.isTaken ? "taken" : "free"
-              const mine = bookings.find(
+              const mine = upcoming.find(
                 (b) => b.roomId === roomId
                   && Date.parse(b.slotStart) === Date.parse(slot.slotStart))
 
@@ -208,17 +216,28 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            My bookings <Badge variant="secondary">{bookings.length}</Badge>
+          <CardTitle className="flex flex-wrap items-center gap-2">
+            {scope === "upcoming" ? "Upcoming" : "Past"} bookings
+            <Badge variant="secondary">{listed.length}</Badge>
+            <Button
+              variant="link"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setScope(scope === "upcoming" ? "past" : "upcoming")}
+            >
+              {scope === "upcoming" ? "Show past" : "Show upcoming"}
+            </Button>
           </CardTitle>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-2">
-          {bookings.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nothing booked yet.</p>
+          {listed.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {scope === "upcoming" ? "Nothing booked yet." : "No past bookings."}
+            </p>
           )}
 
-          {bookings.map((booking) => (
+          {listed.map((booking) => (
             <div
               key={booking.id}
               className="flex items-center justify-between rounded-md border px-3 py-2"
@@ -229,7 +248,9 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
                   {inZone.full(booking.slotStart, booking.timeZoneId)} · {booking.timeZoneId}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => cancel(booking)}>Cancel</Button>
+              {scope === "upcoming" && (
+                <Button variant="ghost" size="sm" onClick={() => cancel(booking)}>Cancel</Button>
+              )}
             </div>
           ))}
         </CardContent>

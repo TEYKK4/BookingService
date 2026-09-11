@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BookingService.Contracts;
+using BookingService.Data;
+using Microsoft.EntityFrameworkCore;
 using Shouldly;
 
 namespace RoomBooking.Tests.Integration;
@@ -16,6 +18,12 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
     public Task InitializeAsync()
     {
         _factory = new BookingApiFactory(postgres.ConnectionString);
+
+        // Touching Services builds the host, which runs migrations. Without this
+        // a test that writes straight to the database would depend on some other
+        // test having created a client first.
+        _ = _factory.Services;
+
         return Task.CompletedTask;
     }
 
@@ -23,6 +31,31 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
     {
         _factory.Dispose();
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Writes straight to the database: the API refuses to create a booking in
+    /// the past, but history has to be set up somehow.
+    /// </summary>
+    private async Task<int> GivenAPastBooking(int userId, int roomId)
+    {
+        await using var db = new BookingDbContext(new DbContextOptionsBuilder<BookingDbContext>()
+            .UseNpgsql(postgres.ConnectionString)
+            .Options);
+
+        var zone = BookingHours.ZoneOf("Europe/Warsaw");
+        var slot = BookingHours.SlotsOn(BookingHours.TodayIn(zone).AddDays(-3), zone)
+            .ElementAt(Interlocked.Increment(ref _hourOffset) % 12);
+
+        var booking = new BookingService.Models.Booking
+        {
+            RoomId = roomId, UserId = userId, SlotStart = slot, CreatedAt = DateTime.UtcNow,
+        };
+
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        return booking.Id;
     }
 
     private HttpClient ClientFor(int? userId = null)
@@ -168,6 +201,57 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
             new CreateBookingRequest(1, slot));
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task My_bookings_leaves_out_hours_that_have_already_passed()
+    {
+        const int carol = 41;
+        var pastId = await GivenAPastBooking(carol, roomId: 1);
+
+        var upcoming = await ClientFor(carol).GetFromJsonAsync<List<BookingResponse>>("/api/bookings/my");
+
+        upcoming.ShouldNotBeNull();
+        upcoming.ShouldNotContain(b => b.Id == pastId);
+    }
+
+    [Fact]
+    public async Task Past_bookings_can_still_be_asked_for_explicitly()
+    {
+        const int dave = 42;
+        var pastId = await GivenAPastBooking(dave, roomId: 2);
+
+        var history = await ClientFor(dave)
+            .GetFromJsonAsync<List<BookingResponse>>("/api/bookings/my?scope=past");
+
+        history.ShouldNotBeNull();
+        history.ShouldContain(b => b.Id == pastId);
+    }
+
+    [Fact]
+    public async Task An_unknown_scope_is_rejected_rather_than_ignored()
+    {
+        var response = await ClientFor(Alice).GetAsync("/api/bookings/my?scope=nonsense");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Upcoming_bookings_come_back_soonest_first()
+    {
+        const int erin = 43;
+        var later = NextFreeSlot();
+        var sooner = NextFreeSlot();
+
+        await ClientFor(erin).PostAsJsonAsync("/api/bookings", new CreateBookingRequest(3, later))
+            .ContinueWith(_ => { });
+        await ClientFor(erin).PostAsJsonAsync("/api/bookings", new CreateBookingRequest(3, sooner));
+        await ClientFor(erin).PostAsJsonAsync("/api/bookings", new CreateBookingRequest(3, later));
+
+        var mine = await ClientFor(erin).GetFromJsonAsync<List<BookingResponse>>("/api/bookings/my");
+
+        mine.ShouldNotBeNull();
+        mine.Select(b => b.SlotStart).ShouldBe(mine.Select(b => b.SlotStart).OrderBy(s => s));
     }
 
     [Fact]
