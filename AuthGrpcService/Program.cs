@@ -6,16 +6,25 @@ using AuthGrpcService.Models;
 using AuthGrpcService.Services;
 using AuthGrpcService.Validators;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+var jwtSection = builder.Configuration.GetSection("JwtSettings");
+var jwtSettings = jwtSection.Get<JwtSettings>() ?? new JwtSettings();
+
+// HMAC-SHA256 needs a key of at least 256 bits. Anything shorter fails deep inside
+// the signing call with an unhelpful message, so check it here, up front.
+if (Encoding.UTF8.GetByteCount(jwtSettings.Key) < 32)
+{
+    throw new InvalidOperationException(
+        "JwtSettings:Key must be at least 32 bytes. Set JwtSettings__Key - see .env.example.");
+}
+
+builder.Services.Configure<JwtSettings>(jwtSection);
 builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddScoped<IValidator<Credentials>, CredentialsValidator>();
@@ -26,24 +35,6 @@ builder.Services.AddGrpc(options =>
     options.Interceptors.Add<ValidationInterceptor>();
 });
 
-var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
-
-builder.Services.AddAuthorization();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidateAudience = true,
-            ValidAudience = jwtSettings.Audience,
-            ValidateLifetime = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key)),
-            ValidateIssuerSigningKey = true,
-        };
-    });
-
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -52,9 +43,8 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-app.UseAuthentication();
-app.UseAuthorization();
-
+// This service only issues tokens; nothing here requires one. Token validation
+// lives in BookingService, which is the only place that consumes them.
 app.MapGrpcService<AuthService>();
 app.MapGet("/",
     () =>

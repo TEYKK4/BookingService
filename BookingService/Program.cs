@@ -17,10 +17,12 @@ builder.Services.AddDbContext<BookingDbContext>(options =>
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new JwtSettings();
 
-if (string.IsNullOrWhiteSpace(jwtSettings.Key))
+// HMAC-SHA256 needs a key of at least 256 bits. Anything shorter fails deep inside
+// the validation call with an unhelpful message, so check it here, up front.
+if (Encoding.UTF8.GetByteCount(jwtSettings.Key) < 32)
 {
     throw new InvalidOperationException(
-        "JwtSettings:Key is missing. Set JwtSettings__Key - see .env.example.");
+        "JwtSettings:Key must be at least 32 bytes. Set JwtSettings__Key - see .env.example.");
 }
 
 // The token is signed by AuthService and verified here with the same key.
