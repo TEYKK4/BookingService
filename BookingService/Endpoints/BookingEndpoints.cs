@@ -8,6 +8,12 @@ namespace BookingService.Endpoints;
 
 public static class BookingEndpoints
 {
+    /// <summary>
+    /// Log category for these endpoints. ILogger&lt;T&gt; needs a non-static type and
+    /// a static class cannot be a type argument, so this stands in for it.
+    /// </summary>
+    public sealed class Log;
+
     public static void MapBookingEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/bookings").WithTags("Bookings").RequireAuthorization();
@@ -55,7 +61,7 @@ public static class BookingEndpoints
             CreateBookingRequest request,
             BookingDbContext db,
             ClaimsPrincipal user,
-            ILoggerFactory loggerFactory,
+            ILogger<Log> logger,
             CancellationToken ct) =>
         {
             if (user.IdOrNull() is not { } userId)
@@ -119,8 +125,7 @@ public static class BookingEndpoints
                                               { SqlState: PostgresErrorCodes.UniqueViolation })
             {
                 // Someone booked the same slot between the check above and this insert.
-                loggerFactory.CreateLogger("Bookings").LogWarning(
-                    "Race lost on room {RoomId} at {SlotStart}", room.Id, slotStart);
+                logger.LogWarning("Race lost on room {RoomId} at {SlotStart}", room.Id, slotStart);
 
                 return Results.Problem("That slot is already booked.", statusCode: StatusCodes.Status409Conflict);
             }
