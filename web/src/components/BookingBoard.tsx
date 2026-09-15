@@ -29,6 +29,14 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
   const room = useMemo(() => rooms.find((r) => r.id === roomId) ?? null, [rooms, roomId])
   const zone = room?.timeZoneId ?? viewerZone
 
+  // Base UI's SelectValue shows the raw value unless the Select knows the labels.
+  const roomItems = useMemo(
+    () => rooms.map((r) => ({
+      value: r.id.toString(),
+      label: `${r.name} · ${r.capacity} people · ${r.timeZoneId}`,
+    })),
+    [rooms])
+
   const fail = (error: unknown) => toast.error((error as Error).message)
 
   const loadBookings = useCallback(async () => {
@@ -128,6 +136,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
             <div className="flex min-w-56 flex-col gap-2">
               <Label>Room</Label>
               <Select
+                items={roomItems}
                 value={roomId?.toString() ?? ""}
                 onValueChange={(value) => {
                   const next = rooms.find((r) => r.id === Number(value))
