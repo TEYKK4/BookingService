@@ -201,8 +201,8 @@ Errors are RFC 9457 problem details; `detail` carries the human-readable reason.
 ## Tests
 
 ```
-Unit          18   validator, token generation, slot rules incl. daylight saving
-Integration   39   auth API, booking API, database constraints
+Unit          24   validator, token generation, slot rules incl. daylight saving
+Integration   33   auth API, booking API, database constraints
 ```
 
 Integration tests boot the real app with `WebApplicationFactory` against real PostgreSQL
