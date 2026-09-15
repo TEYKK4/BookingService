@@ -1,7 +1,6 @@
 using System.Text;
 using AuthGrpcService;
 using AuthGrpcService.Data;
-using AuthGrpcService.Interceptors;
 using AuthGrpcService.Models;
 using AuthGrpcService.Services;
 using AuthGrpcService.Validators;
@@ -28,12 +27,8 @@ builder.Services.Configure<JwtSettings>(jwtSection);
 builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddScoped<IValidator<Credentials>, CredentialsValidator>();
-builder.Services.AddScoped<ValidationInterceptor>();
 
-builder.Services.AddGrpc(options =>
-{
-    options.Interceptors.Add<ValidationInterceptor>();
-});
+builder.Services.AddGrpc();
 
 var app = builder.Build();
 

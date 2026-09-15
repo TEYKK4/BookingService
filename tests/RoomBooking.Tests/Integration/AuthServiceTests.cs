@@ -2,6 +2,7 @@ using AuthGrpcService;
 using AuthGrpcService.Data;
 using AuthGrpcService.Models;
 using AuthGrpcService.Services;
+using AuthGrpcService.Validators;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,7 +29,7 @@ public class AuthServiceTests(PostgresFixture postgres) : IClassFixture<Postgres
         .Options);
 
     private AuthService NewService(AppDbContext db) =>
-        new(NullLogger<AuthService>.Instance, db, _tokens);
+        new(NullLogger<AuthService>.Instance, db, _tokens, new CredentialsValidator());
 
     // ServerCallContext is never touched by these handlers.
     private static ServerCallContext NoContext => null!;
@@ -67,6 +68,35 @@ public class AuthServiceTests(PostgresFixture postgres) : IClassFixture<Postgres
         var user = await db.Users.SingleAsync(u => u.Login == login);
         user.PasswordHash.ShouldNotBe("secret123");
         BCrypt.Net.BCrypt.Verify("secret123", user.PasswordHash).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("ab", "secret123")]      // login too short
+    [InlineData("bob", "12345")]         // password too short
+    [InlineData("", "")]
+    public async Task Register_rejects_malformed_credentials_before_touching_the_database(
+        string login, string password)
+    {
+        await using var db = NewDb();
+
+        var exception = await Should.ThrowAsync<RpcException>(() =>
+            NewService(db).Register(new Credentials { Login = login, Password = password }, NoContext));
+
+        exception.StatusCode.ShouldBe(StatusCode.InvalidArgument);
+        (await db.Users.CountAsync(u => u.Login == login)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Login_with_malformed_credentials_is_just_Unauthenticated()
+    {
+        // No InvalidArgument here on purpose: login must not reveal the validation
+        // rules, and a malformed login cannot match anyone anyway.
+        await using var db = NewDb();
+
+        var exception = await Should.ThrowAsync<RpcException>(() =>
+            NewService(db).Login(new Credentials { Login = "x", Password = "" }, NoContext));
+
+        exception.StatusCode.ShouldBe(StatusCode.Unauthenticated);
     }
 
     [Fact]

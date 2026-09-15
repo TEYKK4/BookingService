@@ -1,12 +1,17 @@
 using AuthGrpcService.Data;
 using AuthGrpcService.Models;
+using FluentValidation;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace AuthGrpcService.Services;
 
-public class AuthService(ILogger<AuthService> logger, AppDbContext db, JwtTokenService jwtTokenService) : Auth.AuthBase
+public class AuthService(
+    ILogger<AuthService> logger,
+    AppDbContext db,
+    JwtTokenService jwtTokenService,
+    IValidator<Credentials> validator) : Auth.AuthBase
 {
     public override async Task<JwtToken> Login(Credentials request, ServerCallContext context)
     {
@@ -24,6 +29,16 @@ public class AuthService(ILogger<AuthService> logger, AppDbContext db, JwtTokenS
 
     public override async Task<JwtToken> Register(Credentials request, ServerCallContext context)
     {
+        // Login is deliberately not validated: a malformed login simply matches no
+        // user, and the caller gets the same Unauthenticated as for a wrong password.
+        var validation = await validator.ValidateAsync(request);
+
+        if (!validation.IsValid)
+        {
+            var errors = string.Join(", ", validation.Errors.Select(e => e.ErrorMessage));
+            throw new RpcException(new Status(StatusCode.InvalidArgument, errors));
+        }
+
         if (await db.Users.AnyAsync(u => u.Login == request.Login))
         {
             throw new RpcException(new Status(StatusCode.AlreadyExists, "User with this login already exists"));
