@@ -50,8 +50,29 @@ which production would simply not use.
 dotnet test RoomBooking.slnx
 ```
 
-53 tests, about 10 seconds. Integration tests start real PostgreSQL containers through
+61 tests, about 10 seconds. Integration tests start real PostgreSQL containers through
 Testcontainers, so Docker has to be running.
+
+### Migrations
+
+Migrations run on startup, so day to day you never touch them. When you change a model:
+
+```bash
+cd BookingService            # or AuthGrpcService
+dotnet ef migrations add <Name>
+```
+
+That works with nothing configured - it only builds the model. Commands that touch a
+database (`database update`, `migrations list`) read `ConnectionStrings__DefaultConnection`
+from the environment, the same variable the app uses. With Compose running, point it at the
+published port - `5432` for Auth, `5433` for Booking - and the credentials from your `.env`:
+
+```powershell
+$env:ConnectionStrings__DefaultConnection = "Host=localhost;Port=5433;Database=<BOOKING_DB_NAME>;Username=<POSTGRES_USER>;Password=<POSTGRES_PASSWORD>"
+```
+
+Nothing is hardcoded in the design-time factories; they read `appsettings*.json` and the
+environment exactly as the running app does.
 
 ---
 

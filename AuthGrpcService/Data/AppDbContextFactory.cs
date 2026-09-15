@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 
-namespace BookingService.Data;
+namespace AuthGrpcService.Data;
 
 /// <summary>
 /// Used only by <c>dotnet ef</c> at design time. Reads the same configuration
@@ -12,9 +12,9 @@ namespace BookingService.Data;
 /// connection string at all; commands that touch a database need
 /// <c>ConnectionStrings__DefaultConnection</c> set in the shell.
 /// </summary>
-public class BookingDbContextFactory : IDesignTimeDbContextFactory<BookingDbContext>
+public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
-    public BookingDbContext CreateDbContext(string[] args)
+    public AppDbContext CreateDbContext(string[] args)
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
@@ -23,10 +23,10 @@ public class BookingDbContextFactory : IDesignTimeDbContextFactory<BookingDbCont
             .AddEnvironmentVariables()
             .Build();
 
-        var options = new DbContextOptionsBuilder<BookingDbContext>()
+        var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
             .Options;
 
-        return new BookingDbContext(options);
+        return new AppDbContext(options);
     }
 }
