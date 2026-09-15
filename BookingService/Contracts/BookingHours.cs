@@ -17,8 +17,28 @@ public static class BookingHours
     private static readonly ConcurrentDictionary<string, TimeZoneInfo> Zones = new();
 
     /// <summary>Resolves an IANA id such as "Europe/Warsaw". Cached - the lookup is not free.</summary>
-    public static TimeZoneInfo ZoneOf(string timeZoneId) =>
-        Zones.GetOrAdd(timeZoneId, TimeZoneInfo.FindSystemTimeZoneById);
+    /// <exception cref="InvalidOperationException">
+    /// The id is not a time zone this machine knows. Usually a typo in seed data,
+    /// or a container image without tzdata installed.
+    /// </exception>
+    public static TimeZoneInfo ZoneOf(string timeZoneId)
+    {
+        if (Zones.TryGetValue(timeZoneId, out var cached))
+        {
+            return cached;
+        }
+
+        try
+        {
+            return Zones.GetOrAdd(timeZoneId, TimeZoneInfo.FindSystemTimeZoneById);
+        }
+        catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            throw new InvalidOperationException(
+                $"'{timeZoneId}' is not a known IANA time zone on this system. " +
+                "Check the room's TimeZoneId, and that the runtime image has tzdata.", e);
+        }
+    }
 
     /// <summary>The UTC instants of every bookable hour on one local day.</summary>
     public static IEnumerable<DateTime> SlotsOn(DateOnly localDate, TimeZoneInfo zone)

@@ -9,6 +9,27 @@ public class BookingHoursTests
     private static readonly TimeZoneInfo NewYork = BookingHours.ZoneOf("America/New_York");
     private static readonly TimeZoneInfo Utc = BookingHours.ZoneOf("Etc/UTC");
 
+    [Theory]
+    [InlineData("Mars/Olympus_Mons")]
+    [InlineData("Europe/Warsw")]      // typo
+    [InlineData("")]
+    public void An_unknown_zone_fails_with_a_message_that_names_it(string timeZoneId)
+    {
+        var exception = Should.Throw<InvalidOperationException>(() => BookingHours.ZoneOf(timeZoneId));
+
+        exception.Message.ShouldContain($"'{timeZoneId}'");
+        exception.Message.ShouldContain("tzdata");
+    }
+
+    [Fact]
+    public void A_known_zone_is_returned_from_cache_on_repeat()
+    {
+        var first = BookingHours.ZoneOf("Europe/Warsaw");
+        var second = BookingHours.ZoneOf("Europe/Warsaw");
+
+        second.ShouldBeSameAs(first);
+    }
+
     [Fact]
     public void SlotsOn_returns_one_slot_per_working_hour()
     {

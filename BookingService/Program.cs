@@ -54,13 +54,25 @@ builder.Services.AddGrpcClient<Auth.AuthClient>(options =>
 
 builder.Services.AddOpenApi();
 
+// Unhandled exceptions become a JSON problem response instead of an empty 500.
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
     db.Database.Migrate();
+
+    // Fail at startup, not on the first booking, if any room's zone cannot be
+    // resolved - e.g. a typo in seed data, or a runtime image without tzdata.
+    foreach (var timeZoneId in db.Rooms.Select(r => r.TimeZoneId).Distinct())
+    {
+        BookingHours.ZoneOf(timeZoneId);
+    }
 }
+
+app.UseExceptionHandler();
 
 app.UseAuthentication();
 app.UseAuthorization();
