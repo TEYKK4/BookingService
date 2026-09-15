@@ -1,24 +1,14 @@
 # Applied automatically by `docker compose up`. Dev-only conveniences.
 # Nothing here should ever run in production.
 services:
-  bookingservice:
+  api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
     ports:
-      # Swagger / direct REST calls without going through nginx.
-      - "8081:8080"
-
-  authgrpcservice:
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-    ports:
-      # gRPC exposed so you can poke it with grpcurl. Internal-only in prod.
+      # Scalar / direct REST calls without going through nginx.
       - "8080:8080"
 
-  auth-db:
+  db:
+    # Exposed so local tools (Rider, psql, pgAdmin) can reach the database.
     ports:
       - "5432:5432"
-
-  booking-db:
-    ports:
-      - "5433:5432"

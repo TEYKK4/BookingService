@@ -1,4 +1,4 @@
-using BookingService.Data;
+using RoomBooking.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Shouldly;
@@ -12,7 +12,7 @@ namespace RoomBooking.Tests.Integration;
 /// </summary>
 public class BookingConstraintTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
-    private BookingDbContext NewDb() => new(new DbContextOptionsBuilder<BookingDbContext>()
+    private AppDbContext NewDb() => new(new DbContextOptionsBuilder<AppDbContext>()
         .UseNpgsql(postgres.ConnectionString)
         .Options);
 
@@ -30,13 +30,13 @@ public class BookingConstraintTests(PostgresFixture postgres) : IClassFixture<Po
         var slot = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(200).AddHours(9), DateTimeKind.Utc);
         await using var db = NewDb();
 
-        db.Bookings.Add(new BookingService.Models.Booking
+        db.Bookings.Add(new RoomBooking.Models.Booking
         {
             RoomId = 1, UserId = 1, SlotStart = slot, CreatedAt = DateTime.UtcNow,
         });
         await db.SaveChangesAsync();
 
-        db.Bookings.Add(new BookingService.Models.Booking
+        db.Bookings.Add(new RoomBooking.Models.Booking
         {
             RoomId = 1, UserId = 2, SlotStart = slot, CreatedAt = DateTime.UtcNow,
         });
@@ -53,11 +53,11 @@ public class BookingConstraintTests(PostgresFixture postgres) : IClassFixture<Po
         var slot = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(201).AddHours(9), DateTimeKind.Utc);
         await using var db = NewDb();
 
-        db.Bookings.Add(new BookingService.Models.Booking
+        db.Bookings.Add(new RoomBooking.Models.Booking
         {
             RoomId = 1, UserId = 1, SlotStart = slot, CreatedAt = DateTime.UtcNow,
         });
-        db.Bookings.Add(new BookingService.Models.Booking
+        db.Bookings.Add(new RoomBooking.Models.Booking
         {
             RoomId = 2, UserId = 1, SlotStart = slot, CreatedAt = DateTime.UtcNow,
         });

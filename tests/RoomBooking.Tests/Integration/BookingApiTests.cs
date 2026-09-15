@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using BookingService.Contracts;
-using BookingService.Data;
+using RoomBooking.Contracts;
+using RoomBooking.Data;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 
@@ -10,14 +10,14 @@ namespace RoomBooking.Tests.Integration;
 
 public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
-    private BookingApiFactory _factory = null!;
+    private ApiFactory _factory = null!;
 
     private const int Alice = 1;
     private const int Bob = 2;
 
     public Task InitializeAsync()
     {
-        _factory = new BookingApiFactory(postgres.ConnectionString);
+        _factory = new ApiFactory(postgres.ConnectionString);
 
         // Touching Services builds the host, which runs migrations. Without this
         // a test that writes straight to the database would depend on some other
@@ -39,7 +39,7 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
     /// </summary>
     private async Task<int> GivenAPastBooking(int userId, int roomId)
     {
-        await using var db = new BookingDbContext(new DbContextOptionsBuilder<BookingDbContext>()
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(postgres.ConnectionString)
             .Options);
 
@@ -47,7 +47,7 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
         var slot = BookingHours.SlotsOn(BookingHours.TodayIn(zone).AddDays(-3), zone)
             .ElementAt(Interlocked.Increment(ref _hourOffset) % 12);
 
-        var booking = new BookingService.Models.Booking
+        var booking = new RoomBooking.Models.Booking
         {
             RoomId = roomId, UserId = userId, SlotStart = slot, CreatedAt = DateTime.UtcNow,
         };

@@ -8,10 +8,8 @@
     <File Path="compose.yaml" />
     <File Path="compose.override.yaml" />
     <File Path=".env.example" />
-    <File Path="RoomBooking.Contracts/Protos/auth.proto" />
+    <File Path="README.md" />
   </Folder>
-  <Project Path="RoomBooking.Contracts/RoomBooking.Contracts.csproj" />
-  <Project Path="AuthGrpcService/AuthGrpcService.csproj" />
-  <Project Path="BookingService/BookingService.csproj" />
+  <Project Path="RoomBooking/RoomBooking.csproj" />
   <Project Path="tests/RoomBooking.Tests/RoomBooking.Tests.csproj" />
 </Solution>

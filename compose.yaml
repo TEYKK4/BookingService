@@ -1,6 +1,6 @@
 services:
   # Public entry point: nginx serves the built React app and proxies /api
-  # to BookingService over the internal network.
+  # to the API over the internal network.
   web:
     image: roombooking-web
     build:
@@ -9,63 +9,30 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - bookingservice
+      - api
 
-  # Public REST API. Validates JWTs locally; calls Auth over gRPC to issue them.
-  bookingservice:
-    image: bookingservice
+  api:
+    image: roombooking-api
     build:
       context: .
-      dockerfile: BookingService/Dockerfile
+      dockerfile: RoomBooking/Dockerfile
     environment:
-      - ConnectionStrings__DefaultConnection=Host=booking-db;Port=5432;Database=${BOOKING_DB_NAME};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
-      - JwtSettings__Key=${JWT_KEY}
-      - JwtSettings__Issuer=${JWT_ISSUER}
-      - JwtSettings__Audience=${JWT_AUDIENCE}
-      - AuthService__Address=http://authgrpcservice:8080
-    depends_on:
-      booking-db:
-        condition: service_healthy
-      authgrpcservice:
-        condition: service_started
-
-  # Internal only - no host port. Reachable just by bookingservice.
-  authgrpcservice:
-    image: authgrpcservice
-    build:
-      context: .
-      dockerfile: AuthGrpcService/Dockerfile
-    environment:
-      - ConnectionStrings__DefaultConnection=Host=auth-db;Port=5432;Database=${AUTH_DB_NAME};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       - JwtSettings__Key=${JWT_KEY}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      auth-db:
+      db:
         condition: service_healthy
 
-  auth-db:
+  db:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${AUTH_DB_NAME}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - auth_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  booking-db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${BOOKING_DB_NAME}
-    volumes:
-      - booking_db_data:/var/lib/postgresql/data
+      - roombooking_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
@@ -73,5 +40,4 @@ services:
       retries: 5
 
 volumes:
-  auth_db_data:
-  booking_db_data:
+  roombooking_data:

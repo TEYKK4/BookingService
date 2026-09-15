@@ -1,7 +1,7 @@
 # Room Booking
 
-Book a meeting room by the hour. Two .NET services, a PostgreSQL database each, a React
-front end, and one `docker compose up`.
+Book a meeting room by the hour. One .NET service, one PostgreSQL database, a React front
+end behind nginx, and a single `docker compose up`.
 
 The interesting part is not the CRUD — it is what happens when two people click the same
 slot at the same moment, and what "08:00" means for a room in another country.
@@ -23,10 +23,9 @@ Open **http://localhost:3000**, register an account, and book a slot.
 
 | Variable | Notes |
 | --- | --- |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD` | shared by both databases |
-| `AUTH_DB_NAME`, `BOOKING_DB_NAME` | two separate databases — see below |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | any values; the database is created on first start |
 | `JWT_KEY` | **at least 32 characters**, HMAC-SHA256 refuses anything shorter |
-| `JWT_ISSUER`, `JWT_AUDIENCE` | any string, must match on both services |
+| `JWT_ISSUER`, `JWT_AUDIENCE` | any strings |
 
 Migrations run automatically on startup, and four rooms are seeded.
 
@@ -35,14 +34,13 @@ Migrations run automatically on startup, and four rooms are seeded.
 | | URL | |
 | --- | --- | --- |
 | Web app | http://localhost:3000 | the only thing a user touches |
-| REST API | http://localhost:8081 | dev only |
-| API reference | http://localhost:8081/scalar/v1 | dev only |
-| Auth gRPC | `localhost:8080` | dev only, for `grpcurl` |
-| Databases | `5432` auth, `5433` booking | dev only |
+| API | http://localhost:8080 | dev only |
+| API reference | http://localhost:8080/scalar/v1 | dev only |
+| Database | `localhost:5432` | dev only |
 
-Only port 3000 is published in `compose.yaml`. Everything else lives in
-`compose.override.yaml`, which Compose applies automatically for local development and
-which production would simply not use.
+Only port 3000 is published in `compose.yaml`. The rest lives in `compose.override.yaml`,
+which Compose applies automatically for local development and which production would
+simply not use.
 
 ### Tests
 
@@ -50,7 +48,7 @@ which production would simply not use.
 dotnet test RoomBooking.slnx
 ```
 
-61 tests, about 10 seconds. Integration tests start real PostgreSQL containers through
+57 tests, about 10 seconds. Integration tests start a real PostgreSQL container through
 Testcontainers, so Docker has to be running.
 
 ### Migrations
@@ -58,20 +56,19 @@ Testcontainers, so Docker has to be running.
 Migrations run on startup, so day to day you never touch them. When you change a model:
 
 ```bash
-cd BookingService            # or AuthGrpcService
+cd RoomBooking
 dotnet ef migrations add <Name>
 ```
 
 That works with nothing configured - it only builds the model. Commands that touch a
 database (`database update`, `migrations list`) read `ConnectionStrings__DefaultConnection`
-from the environment, the same variable the app uses. With Compose running, point it at the
-published port - `5432` for Auth, `5433` for Booking - and the credentials from your `.env`:
+from the environment, the same variable the app uses:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = "Host=localhost;Port=5433;Database=<BOOKING_DB_NAME>;Username=<POSTGRES_USER>;Password=<POSTGRES_PASSWORD>"
+$env:ConnectionStrings__DefaultConnection = "Host=localhost;Port=5432;Database=<POSTGRES_DB>;Username=<POSTGRES_USER>;Password=<POSTGRES_PASSWORD>"
 ```
 
-Nothing is hardcoded in the design-time factories; they read `appsettings*.json` and the
+Nothing is hardcoded in the design-time factory; it reads `appsettings*.json` and the
 environment exactly as the running app does.
 
 ---
@@ -82,29 +79,24 @@ environment exactly as the running app does.
 Browser
    │  REST / JSON
    ▼
-nginx ──► BookingService ──gRPC──► AuthGrpcService
-              │                         │
-              ▼                         ▼
-          booking-db                 auth-db
+nginx ──► RoomBooking API ──► PostgreSQL
+           auth, rooms, bookings
 ```
 
-**Why gRPC for one hop and REST for the other.** gRPC is built for services talking to
-each other: a typed contract, generated clients, no hand-written HTTP plumbing. A browser
-cannot speak it directly, so the public API is REST. Auth is internal and never exposed.
+**One service, on purpose.** An earlier iteration split authentication into a separate
+gRPC service with its own database — the repository name is a leftover from that. It was
+merged back: for this domain one service is the right size, and the split was adding
+moving parts without adding capability. The boundary it demonstrated is still visible in
+the code — the token is the only thing that carries identity between `/api/auth` and the
+rest — so splitting again later is a matter of moving files, not redesigning.
 
 **Why nginx proxies `/api`.** The browser only ever talks to one origin, so CORS never
-comes up — not in development (Vite's proxy) and not in production (nginx). No
+comes up — not in development (Vite's proxy) and not in production (nginx). There is no
 `AddCors` anywhere in the codebase.
 
-**Why one repository.** Repository layout is source control, not architecture. The
-services already deploy independently and own their data, which is what makes them
-services. Splitting the repo would mean versioning `auth.proto` as a package, or
-copy-pasting it and watching the copies drift.
-
-**Why `RoomBooking.Contracts`.** The `.proto` used to be compiled into both services —
-one as server, one as client — which produced two different `Credentials` types with the
-same name. Anything referencing both projects failed to compile. The contract now lives
-in one library with `GrpcServices="Both"`.
+**Why JWT rather than a session cookie.** The API is stateless: any number of replicas
+can verify a token with the shared key, no session store, no sticky sessions. The cost is
+that a token cannot be revoked before it expires — see "Deliberately not done".
 
 ---
 
@@ -145,37 +137,24 @@ Warsaw, local 08:00  →  07:00Z in January   (UTC+1)
 
 A fixed UTC range would silently shift the room's opening time by an hour twice a year.
 Slot generation also skips local hours swallowed by a spring-forward transition, which
-simply do not exist.
+simply do not exist. The same instant can therefore be valid for one room and rejected by
+another. The UI renders every time in the room's zone — the way a hotel states check-in in
+the hotel's local time — and shows the viewer's own time on hover when the zones differ.
 
-The same instant can therefore be valid for one room and rejected by another:
+If a room's zone cannot be resolved — a typo in seed data, or a runtime image without
+tzdata — the service refuses to start, with a message naming the zone. Better at deploy
+time, when someone is watching, than on the first booking.
 
-```
-2026-09-15T06:00:00Z
-  Warsaw room   → 201   (08:00 there)
-  New York room → 400   (02:00 there)
-```
+### The user id always comes from the token
 
-The UI renders every time in the room's zone — the way a hotel states check-in in the
-hotel's local time — and shows the viewer's own time on hover when the zones differ.
-
-### BookingService verifies tokens itself
-
-A JWT is self-contained: the signature proves it. Calling AuthService on every request
-would add a network hop and make Auth a single point of failure for every booking, in
-exchange for nothing. Auth is contacted only to *issue* a token.
-
-The user id always comes from the token's claims, never from the request body —
-otherwise anyone could act as anyone by sending a different id.
-
-### Separate databases
-
-Auth owns `Users`; Booking owns `Rooms` and `Bookings`. Booking stores the user id from
-the token with no foreign key across the boundary. Two services sharing one database is
-the usual way "microservices" turn into a distributed monolith.
+Never from the request body — otherwise anyone could act as anyone by sending a
+different id. `CurrentUser.IdOrNull` is the only place that reads it.
 
 ### Cancelling someone else's booking returns 404, not 403
 
-`403 Forbidden` would confirm that the booking exists. `404` reveals nothing.
+`403 Forbidden` would confirm that the booking exists. `404` reveals nothing. Login works
+the same way: an unknown user and a wrong password get the identical response, so the
+API cannot be used to enumerate logins.
 
 ### Past bookings are history, not a to-do list
 
@@ -190,14 +169,24 @@ available on request:
 
 An unrecognised `scope` is a `400` rather than a silent fallback.
 
+### Validation is injected, not located
+
+`CredentialsValidator` (FluentValidation) is a constructor dependency of the register
+handler. An earlier version resolved it from `IServiceProvider` inside a generic gRPC
+interceptor — a service locator. Constructor injection keeps every dependency visible in
+the signature and lets the container verify the graph at startup.
+
+Only registration is validated. A malformed login on `/login` simply matches nobody and
+gets the same `401` as a wrong password; returning `400` there would leak the rules.
+
 ---
 
 ## API
 
 | | | |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | forwarded to AuthService over gRPC |
-| `POST` | `/api/auth/login` | forwarded to AuthService over gRPC |
+| `POST` | `/api/auth/register` | `409` if the login is taken |
+| `POST` | `/api/auth/login` | `401` for any failure, same message |
 | `GET` | `/api/rooms` | anonymous |
 | `GET` | `/api/rooms/{id}/availability?date=` | `date` is a day in the room's zone |
 | `POST` | `/api/bookings` | token required |
@@ -205,21 +194,21 @@ An unrecognised `scope` is a `400` rather than a silent fallback.
 | `DELETE` | `/api/bookings/{id}` | token required, own bookings only |
 | `GET` | `/api/health` | |
 
-gRPC statuses from AuthService are mapped to HTTP rather than surfacing as `500`:
-`Unauthenticated`→401, `AlreadyExists`→409, `InvalidArgument`→400, `Unavailable`→503.
+Errors are RFC 9457 problem details; `detail` carries the human-readable reason.
 
 ---
 
 ## Tests
 
 ```
-Unit          13   validator, token generation, slot rules incl. daylight saving
-Integration   40   auth service, booking API, database constraints, the gRPC seam
+Unit          18   validator, token generation, slot rules incl. daylight saving
+Integration   39   auth API, booking API, database constraints
 ```
 
-Integration tests run against real PostgreSQL via Testcontainers. The EF in-memory
-provider would have been faster and useless here: **it does not enforce unique indexes**,
-so the one behaviour this project is about would pass in tests and fail in production.
+Integration tests boot the real app with `WebApplicationFactory` against real PostgreSQL
+via Testcontainers. Nothing is mocked. The EF in-memory provider would have been faster
+and useless here: **it does not enforce unique indexes**, so the one behaviour this
+project is about would pass in tests and fail in production.
 
 Two tests deserve a mention:
 
@@ -235,14 +224,16 @@ Two tests deserve a mention:
 
 ## Deliberately not done
 
+- **Rate limiting.** Nothing slows down password guessing on `/api/auth/login`. BCrypt
+  makes each attempt expensive in CPU, which is also why this matters: it is a denial
+  of service vector as much as a security one.
+- **Refresh tokens.** Tokens last 60 minutes and cannot be revoked earlier.
+- **A foreign key from `Bookings.UserId` to `Users`.** Users cannot be deleted, so
+  nothing can orphan a booking today. It is a one-line change when that flow exists.
 - **End-to-end tests.** Unit and integration are covered; driving the browser with
-  Playwright was out of scope for the time available.
-- **Refresh tokens.** Tokens last 60 minutes, after which you sign in again.
-- **Rate limiting.** Nothing slows down password guessing on `/api/auth/login`.
+  Playwright was out of scope.
 - **TLS.** Everything is plain HTTP inside the Compose network. A real deployment would
   terminate TLS at the edge.
-- **Kubernetes.** Compose is the target here; production would be one deployment per
-  service.
 - **Bookings of arbitrary length.** Fixed hourly slots are what let a single unique index
   prevent conflicts. Arbitrary ranges need overlap detection — in PostgreSQL, an
   exclusion constraint over a `tstzrange`.
@@ -252,9 +243,13 @@ Two tests deserve a mention:
 ## Layout
 
 ```
-AuthGrpcService/        gRPC service — registration, login, token issuing
-BookingService/         REST API — rooms, availability, bookings
-RoomBooking.Contracts/  the shared .proto and its generated code
+RoomBooking/            the API: auth, rooms, bookings
+  Endpoints/            one file per resource, all handler logic lives here
+  Contracts/            request/response records and the slot rules
+  Data/                 DbContext, design-time factory, migrations
+  Models/               EF entities
+  Services/             JwtTokenService
+  Validators/           FluentValidation rules
 web/                    React + Vite + shadcn/ui, served by nginx
 tests/                  xUnit, Testcontainers, WebApplicationFactory
 compose.yaml            production shape

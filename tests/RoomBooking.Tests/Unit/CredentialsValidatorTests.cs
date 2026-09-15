@@ -1,5 +1,5 @@
-using AuthGrpcService;
-using AuthGrpcService.Validators;
+using RoomBooking.Contracts;
+using RoomBooking.Validators;
 using Shouldly;
 
 namespace RoomBooking.Tests.Unit;
@@ -13,7 +13,7 @@ public class CredentialsValidatorTests
     [InlineData("abc", "123456")]
     public void Accepts_valid_credentials(string login, string password)
     {
-        var result = _validator.Validate(new Credentials { Login = login, Password = password });
+        var result = _validator.Validate(new CredentialsRequest(login, password));
 
         result.IsValid.ShouldBeTrue();
     }
@@ -23,10 +23,10 @@ public class CredentialsValidatorTests
     [InlineData("ab", "secret123")]
     public void Rejects_bad_login(string login, string password)
     {
-        var result = _validator.Validate(new Credentials { Login = login, Password = password });
+        var result = _validator.Validate(new CredentialsRequest(login, password));
 
         result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.PropertyName == nameof(Credentials.Login));
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(CredentialsRequest.Login));
     }
 
     [Theory]
@@ -34,16 +34,16 @@ public class CredentialsValidatorTests
     [InlineData("bob", "12345")]
     public void Rejects_short_password(string login, string password)
     {
-        var result = _validator.Validate(new Credentials { Login = login, Password = password });
+        var result = _validator.Validate(new CredentialsRequest(login, password));
 
         result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.PropertyName == nameof(Credentials.Password));
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(CredentialsRequest.Password));
     }
 
     [Fact]
     public void Rejects_login_over_50_characters()
     {
-        var result = _validator.Validate(new Credentials { Login = new string('a', 51), Password = "secret123" });
+        var result = _validator.Validate(new CredentialsRequest(new string('a', 51), "secret123"));
 
         result.IsValid.ShouldBeFalse();
     }

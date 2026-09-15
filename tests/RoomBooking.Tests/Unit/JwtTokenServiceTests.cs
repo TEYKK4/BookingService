@@ -1,7 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using AuthGrpcService.Models;
-using AuthGrpcService.Services;
+using RoomBooking.Models;
+using RoomBooking.Services;
 using Microsoft.Extensions.Options;
 using Shouldly;
 

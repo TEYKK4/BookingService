@@ -1,12 +1,12 @@
-using AuthGrpcService.Models;
-using AuthGrpcService.Services;
+using RoomBooking.Models;
+using RoomBooking.Services;
 using Microsoft.Extensions.Options;
 
 namespace RoomBooking.Tests.Integration;
 
 /// <summary>
 /// Mints tokens the same way AuthService does. Booking tests do not need the
-/// auth service running: BookingService verifies the signature on its own.
+/// auth service running: RoomBooking verifies the signature on its own.
 /// </summary>
 public static class TestJwt
 {

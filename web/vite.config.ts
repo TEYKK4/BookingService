@@ -17,7 +17,7 @@ export default defineConfig({
     // BookingService. Same origin from the browser's point of view, so no CORS.
     proxy: {
       "/api": {
-        target: "http://localhost:8081",
+        target: "http://localhost:8080",
         changeOrigin: true,
       },
     },

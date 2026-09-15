@@ -1,4 +1,4 @@
-using BookingService.Contracts;
+using RoomBooking.Contracts;
 using Shouldly;
 
 namespace RoomBooking.Tests.Unit;
