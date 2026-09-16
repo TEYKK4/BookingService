@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path="compose.yaml" />
+    <File Path="compose.override.yaml" />
+    <File Path=".env.example" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="RoomBooking/RoomBooking.csproj" />
+  <Project Path="tests/RoomBooking.Tests/RoomBooking.Tests.csproj" />
+</Solution>

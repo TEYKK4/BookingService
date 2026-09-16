@@ -1,0 +1,14 @@
+# Applied automatically by `docker compose up`. Dev-only conveniences.
+# Nothing here should ever run in production.
+services:
+  api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      # Scalar / direct REST calls without going through nginx.
+      - "8080:8080"
+
+  db:
+    # Exposed so local tools (Rider, psql, pgAdmin) can reach the database.
+    ports:
+      - "5432:5432"

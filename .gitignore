@@ -1,0 +1,11 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+.env
+.idea/
+.claude/
+*.DotSettings.user
+node_modules/
+dist/
