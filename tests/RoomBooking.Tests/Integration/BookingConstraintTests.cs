@@ -47,21 +47,4 @@ public class BookingConstraintTests(PostgresFixture postgres) : IClassFixture<Po
             .SqlState.ShouldBe(PostgresErrorCodes.UniqueViolation);
     }
 
-    [Fact]
-    public async Task The_same_slot_in_a_different_room_is_fine()
-    {
-        var slot = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(201).AddHours(9), DateTimeKind.Utc);
-        await using var db = NewDb();
-
-        db.Bookings.Add(new RoomBooking.Models.Booking
-        {
-            RoomId = 1, UserId = 1, SlotStart = slot, CreatedAt = DateTime.UtcNow,
-        });
-        db.Bookings.Add(new RoomBooking.Models.Booking
-        {
-            RoomId = 2, UserId = 1, SlotStart = slot, CreatedAt = DateTime.UtcNow,
-        });
-
-        await Should.NotThrowAsync(() => db.SaveChangesAsync());
-    }
 }

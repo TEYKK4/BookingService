@@ -48,7 +48,7 @@ simply not use.
 dotnet test RoomBooking.slnx
 ```
 
-57 tests, about 10 seconds. Integration tests start a real PostgreSQL container through
+47 tests, about 10 seconds. Integration tests start a real PostgreSQL container through
 Testcontainers, so Docker has to be running.
 
 ### Migrations
@@ -201,8 +201,8 @@ Errors are RFC 9457 problem details; `detail` carries the human-readable reason.
 ## Tests
 
 ```
-Unit          24   validator, token generation, slot rules incl. daylight saving
-Integration   33   auth API, booking API, database constraints
+Unit          19   validator, token generation, slot rules incl. daylight saving
+Integration   28   auth API, booking API, database constraints
 ```
 
 Integration tests boot the real app with `WebApplicationFactory` against real PostgreSQL

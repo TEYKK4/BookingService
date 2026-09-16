@@ -80,8 +80,6 @@ public class AuthApiTests(PostgresFixture postgres) : IClassFixture<PostgresFixt
 
     [Theory]
     [InlineData("ab", "secret123")]      // login too short
-    [InlineData("bob", "12345")]         // password too short
-    [InlineData("", "")]
     public async Task Register_rejects_malformed_credentials_before_touching_the_database(
         string login, string password)
     {

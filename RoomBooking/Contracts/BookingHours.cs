@@ -67,9 +67,7 @@ public static class BookingHours
 
         var local = TimeZoneInfo.ConvertTimeFromUtc(utcSlot, zone);
 
-        return local.TimeOfDay == TimeSpan.FromHours(local.Hour)
-               && local.Hour >= FirstHour
-               && local.Hour <= LastHour;
+        return local.TimeOfDay == TimeSpan.FromHours(local.Hour) && local.Hour is >= FirstHour and <= LastHour;
     }
 
     public static DateOnly TodayIn(TimeZoneInfo zone) =>

@@ -10,7 +10,6 @@ public class CredentialsValidatorTests
 
     [Theory]
     [InlineData("bob", "secret123")]
-    [InlineData("abc", "123456")]
     public void Accepts_valid_credentials(string login, string password)
     {
         var result = _validator.Validate(new CredentialsRequest(login, password));

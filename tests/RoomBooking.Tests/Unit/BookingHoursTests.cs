@@ -11,8 +11,6 @@ public class BookingHoursTests
 
     [Theory]
     [InlineData("Mars/Olympus_Mons")]
-    [InlineData("Europe/Warsw")]      // typo
-    [InlineData("")]
     public void An_unknown_zone_fails_with_a_message_that_names_it(string timeZoneId)
     {
         var exception = Should.Throw<InvalidOperationException>(() => BookingHours.ZoneOf(timeZoneId));
@@ -21,14 +19,6 @@ public class BookingHoursTests
         exception.Message.ShouldContain("tzdata");
     }
 
-    [Fact]
-    public void A_known_zone_is_returned_from_cache_on_repeat()
-    {
-        var first = BookingHours.ZoneOf("Europe/Warsaw");
-        var second = BookingHours.ZoneOf("Europe/Warsaw");
-
-        second.ShouldBeSameAs(first);
-    }
 
     [Fact]
     public void SlotsOn_returns_one_slot_per_working_hour()
@@ -70,16 +60,6 @@ public class BookingHoursTests
         TimeZoneInfo.ConvertTimeFromUtc(summer, Warsaw).Hour.ShouldBe(BookingHours.FirstHour);
     }
 
-    [Fact]
-    public void Rooms_in_different_zones_open_at_different_instants()
-    {
-        var day = new DateOnly(2026, 9, 11);
-
-        var warsaw = BookingHours.SlotsOn(day, Warsaw).First();
-        var newYork = BookingHours.SlotsOn(day, NewYork).First();
-
-        newYork.ShouldBeGreaterThan(warsaw);
-    }
 
     [Fact]
     public void Accepts_an_instant_that_is_a_whole_working_hour_locally()

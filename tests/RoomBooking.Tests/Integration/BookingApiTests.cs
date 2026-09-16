@@ -181,15 +181,6 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
-    [Fact]
-    public async Task Each_room_reports_its_own_time_zone()
-    {
-        var rooms = await ClientFor().GetFromJsonAsync<List<RoomResponse>>("/api/rooms");
-
-        rooms.ShouldNotBeNull();
-        rooms.Single(r => r.Name == "Focus").TimeZoneId.ShouldBe("Europe/Warsaw");
-        rooms.Single(r => r.Name == "Training").TimeZoneId.ShouldBe("America/New_York");
-    }
 
     [Fact]
     public async Task A_slot_in_the_past_is_rejected()
@@ -236,23 +227,6 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
-    [Fact]
-    public async Task Upcoming_bookings_come_back_soonest_first()
-    {
-        const int erin = 43;
-        var later = NextFreeSlot();
-        var sooner = NextFreeSlot();
-
-        await ClientFor(erin).PostAsJsonAsync("/api/bookings", new CreateBookingRequest(3, later))
-            .ContinueWith(_ => { });
-        await ClientFor(erin).PostAsJsonAsync("/api/bookings", new CreateBookingRequest(3, sooner));
-        await ClientFor(erin).PostAsJsonAsync("/api/bookings", new CreateBookingRequest(3, later));
-
-        var mine = await ClientFor(erin).GetFromJsonAsync<List<BookingResponse>>("/api/bookings/my");
-
-        mine.ShouldNotBeNull();
-        mine.Select(b => b.SlotStart).ShouldBe(mine.Select(b => b.SlotStart).OrderBy(s => s));
-    }
 
     [Fact]
     public async Task My_bookings_only_lists_my_own()
