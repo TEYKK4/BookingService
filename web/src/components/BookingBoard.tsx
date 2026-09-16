@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
-  api, inZone, todayIn, viewerZone,
+  api, inZone, todayIn, viewerZone, zoneCity,
   type Booking, type Room, type Slot,
 } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +33,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
   const roomItems = useMemo(
     () => rooms.map((r) => ({
       value: r.id.toString(),
-      label: `${r.name} · ${r.capacity} people · ${r.timeZoneId}`,
+      label: `${r.name} · ${r.capacity} people · ${zoneCity(r.timeZoneId)}`,
     })),
     [rooms])
 
@@ -126,14 +126,14 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
           <CardTitle>Find a slot</CardTitle>
           <CardDescription>
             {room
-              ? <>Times shown in <strong>{room.timeZoneId}</strong>{zoneLabel && ` (${zoneLabel})`}</>
+              ? <>Times shown in <strong>{zoneCity(room.timeZoneId)} time</strong>{zoneLabel && ` (${zoneLabel})`}</>
               : "Pick a room and a day, then click a free hour."}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap gap-4">
-            <div className="flex min-w-56 flex-col gap-2">
+            <div className="flex min-w-72 flex-col gap-2">
               <Label>Room</Label>
               <Select
                 items={roomItems}
@@ -148,7 +148,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
                 <SelectContent>
                   {rooms.map((option) => (
                     <SelectItem key={option.id} value={option.id.toString()}>
-                      {option.name} · {option.capacity} people · {option.timeZoneId}
+                      {option.name} · {option.capacity} people · {zoneCity(option.timeZoneId)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -216,7 +216,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
                 <span className="size-3 rounded-sm bg-primary" /> Yours
               </span>
               {showsAnotherZone && (
-                <span>Your zone is {viewerZone} &mdash; hover a slot to see it</span>
+                <span>Your zone is {zoneCity(viewerZone)} &mdash; hover a slot to see it</span>
               )}
             </div>
           )}
@@ -254,7 +254,7 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
               <div>
                 <p className="font-medium">{booking.roomName}</p>
                 <p className="text-sm text-muted-foreground">
-                  {inZone.full(booking.slotStart, booking.timeZoneId)} · {booking.timeZoneId}
+                  {inZone.full(booking.slotStart, booking.timeZoneId)} · {zoneCity(booking.timeZoneId)}
                 </p>
               </div>
               {scope === "upcoming" && (

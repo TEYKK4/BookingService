@@ -102,4 +102,8 @@ export const inZone = {
 
 export const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
+/** "America/New_York" → "New York": the city is what a person reads, the id is what the API speaks. */
+export const zoneCity = (timeZone: string) =>
+  (timeZone.split("/").pop() ?? timeZone).replace(/_/g, " ")
+
 export const todayIn = (timeZone: string) => inZone.day(new Date(), timeZone)
