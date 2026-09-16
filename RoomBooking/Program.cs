@@ -2,6 +2,7 @@ using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using RoomBooking.Contracts;
 using RoomBooking.Data;
@@ -47,7 +48,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy(Policies.Admin, policy => policy.RequireRole(nameof(UserRole.Admin))));
+
+builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admin"));
 
 builder.Services.AddOpenApi();
 
@@ -67,6 +71,9 @@ using (var scope = app.Services.CreateScope())
     zones.ForEach(timeZoneId => BookingHours.ZoneOf(timeZoneId));
 
     app.Logger.LogInformation("Database migrated; {Count} room time zones validated", zones.Count);
+
+    var adminSettings = scope.ServiceProvider.GetRequiredService<IOptions<AdminSettings>>().Value;
+    await AdminSeeder.EnsureAdminAsync(db, adminSettings, app.Logger);
 }
 
 app.UseExceptionHandler();

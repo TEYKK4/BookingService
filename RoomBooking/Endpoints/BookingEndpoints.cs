@@ -71,7 +71,8 @@ public static class BookingEndpoints
 
             var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == request.RoomId, ct);
 
-            if (room is null)
+            // A deactivated room cannot take new bookings; existing ones are untouched.
+            if (room is null || !room.IsActive)
             {
                 return Results.NotFound();
             }

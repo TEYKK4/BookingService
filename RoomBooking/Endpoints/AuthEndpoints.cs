@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -89,5 +90,20 @@ public static class AuthEndpoints
 
             return Results.Ok(new TokenResponse(tokens.GenerateToken(user)));
         });
+
+        // Who am I - read straight from the token, no database. Lets the client
+        // decide what to show (the admin area) without decoding the JWT itself.
+        group.MapGet("/me", (ClaimsPrincipal user) =>
+        {
+            if (user.IdOrNull() is not { } userId)
+            {
+                return Results.Unauthorized();
+            }
+
+            return Results.Ok(new MeResponse(
+                userId,
+                user.FindFirstValue(ClaimTypes.Name) ?? string.Empty,
+                user.FindFirstValue(ClaimTypes.Role) ?? nameof(UserRole.User)));
+        }).RequireAuthorization();
     }
 }

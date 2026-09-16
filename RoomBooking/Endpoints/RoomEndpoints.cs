@@ -14,6 +14,7 @@ public static class RoomEndpoints
         group.MapGet("/", async (AppDbContext db, CancellationToken ct) =>
         {
             var rooms = await db.Rooms
+                .Where(r => r.IsActive)
                 .OrderBy(r => r.Capacity)
                 .Select(r => new RoomResponse(r.Id, r.Name, r.Capacity, r.TimeZoneId))
                 .ToListAsync(ct);
@@ -31,7 +32,8 @@ public static class RoomEndpoints
         {
             var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId, ct);
 
-            if (room is null)
+            // A deactivated room looks like it does not exist - same as in the list.
+            if (room is null || !room.IsActive)
             {
                 return Results.NotFound();
             }

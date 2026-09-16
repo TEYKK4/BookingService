@@ -59,4 +59,12 @@ public class JwtTokenServiceTests
         token.ShouldNotContain("somethingsecret");
         Decode(token).Claims.ShouldNotContain(c => c.Value.Contains("$2a$"));
     }
+
+    [Fact]
+    public void Token_carries_the_role()
+    {
+        var decoded = Decode(_service.GenerateToken(new User { Id = 1, Login = "boss", Role = UserRole.Admin }));
+
+        decoded.Claims.ShouldContain(c => c.Type == ClaimTypes.Role && c.Value == "Admin");
+    }
 }

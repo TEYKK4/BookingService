@@ -17,6 +17,9 @@ public class JwtTokenService(IOptions<JwtSettings> options)
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Login),
+            // The role travels in the token, so a promotion applies on next login -
+            // the same trade-off as "a token cannot be revoked before it expires".
+            new Claim(ClaimTypes.Role, user.Role.ToString()),
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Key));

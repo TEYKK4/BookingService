@@ -196,4 +196,47 @@ public class AuthApiTests(PostgresFixture postgres) : IClassFixture<PostgresFixt
         exception.InnerException.ShouldBeOfType<PostgresException>()
             .SqlState.ShouldBe(PostgresErrorCodes.UniqueViolation);
     }
+
+    [Fact]
+    public async Task Me_reports_id_login_and_role_from_the_token()
+    {
+        var login = NewLogin();
+        var registered = await Register(Client(), login, "secret123");
+        var token = (await registered.Content.ReadFromJsonAsync<TokenResponse>())!.Token;
+
+        var client = Client();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var me = await client.GetFromJsonAsync<MeResponse>("/api/auth/me");
+
+        me.ShouldNotBeNull();
+        me.Login.ShouldBe(login);
+        me.Role.ShouldBe("User");
+    }
+
+    [Fact]
+    public async Task Me_without_a_token_is_401()
+    {
+        var response = await Client().GetAsync("/api/auth/me");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task The_admin_named_in_configuration_exists_after_startup()
+    {
+        // A separate host with admin credentials configured: building it runs the seeder.
+        using var factory = new ApiFactory(postgres.ConnectionString, adminLogin: "boss", adminPassword: "boss-secret-1");
+        var client = factory.CreateClient();
+
+        var login = await Login(client, "boss", "boss-secret-1");
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var token = (await login.Content.ReadFromJsonAsync<TokenResponse>())!.Token;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var me = await client.GetFromJsonAsync<MeResponse>("/api/auth/me");
+
+        me!.Role.ShouldBe("Admin");
+    }
 }

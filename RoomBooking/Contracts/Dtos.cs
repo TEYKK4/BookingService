@@ -4,6 +4,8 @@ public record CredentialsRequest(string Login, string Password);
 
 public record TokenResponse(string Token);
 
+public record MeResponse(int Id, string Login, string Role);
+
 public record RoomResponse(int Id, string Name, int Capacity, string TimeZoneId);
 
 /// <summary><paramref name="SlotStart"/> is a UTC instant; render it in the room's zone.</summary>
