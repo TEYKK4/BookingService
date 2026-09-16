@@ -61,7 +61,7 @@ public static class AuthEndpoints
                 return Results.Problem("User with this login already exists", statusCode: StatusCodes.Status409Conflict);
             }
 
-            logger.LogInformation("User {Login} registered", user.Login);
+            logger.LogInformation("User {UserId} ({Login}) registered", user.Id, user.Login);
 
             return Results.Ok(new TokenResponse(tokens.GenerateToken(user)));
         });
@@ -79,10 +79,13 @@ public static class AuthEndpoints
 
             if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password ?? string.Empty, user.PasswordHash))
             {
+                // Logged so that a burst of these is visible - it is how brute force
+                // shows up. The attempted login goes in; the password never does.
+                logger.LogWarning("Failed login for {Login}", request.Login);
                 return Results.Problem("Invalid login or password", statusCode: StatusCodes.Status401Unauthorized);
             }
 
-            logger.LogInformation("User {Login} logged in", user.Login);
+            logger.LogInformation("User {UserId} ({Login}) logged in", user.Id, user.Login);
 
             return Results.Ok(new TokenResponse(tokens.GenerateToken(user)));
         });

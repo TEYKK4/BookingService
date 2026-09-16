@@ -63,10 +63,10 @@ using (var scope = app.Services.CreateScope())
 
     // Fail at startup, not on the first booking, if any room's zone cannot be
     // resolved - e.g. a typo in seed data, or a runtime image without tzdata.
-    foreach (var timeZoneId in db.Rooms.Select(r => r.TimeZoneId).Distinct())
-    {
-        BookingHours.ZoneOf(timeZoneId);
-    }
+    var zones = db.Rooms.Select(r => r.TimeZoneId).Distinct().ToList();
+    zones.ForEach(timeZoneId => BookingHours.ZoneOf(timeZoneId));
+
+    app.Logger.LogInformation("Database migrated; {Count} room time zones validated", zones.Count);
 }
 
 app.UseExceptionHandler();

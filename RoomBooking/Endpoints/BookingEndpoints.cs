@@ -130,6 +130,10 @@ public static class BookingEndpoints
                 return Results.Problem("That slot is already booked.", statusCode: StatusCodes.Status409Conflict);
             }
 
+            logger.LogInformation(
+                "Booking {BookingId} created: room {RoomId} at {SlotStart} by user {UserId}",
+                booking.Id, room.Id, slotStart, userId);
+
             return Results.Created(
                 $"/api/bookings/{booking.Id}",
                 new BookingResponse(
@@ -140,6 +144,7 @@ public static class BookingEndpoints
             int bookingId,
             AppDbContext db,
             ClaimsPrincipal user,
+            ILogger<Log> logger,
             CancellationToken ct) =>
         {
             if (user.IdOrNull() is not { } userId)
@@ -155,13 +160,19 @@ public static class BookingEndpoints
             }
 
             // Not 403: telling a stranger the booking exists leaks information.
+            // Logged, though - someone walking through ids is worth noticing.
             if (booking.UserId != userId)
             {
+                logger.LogWarning(
+                    "User {UserId} tried to cancel booking {BookingId} owned by someone else",
+                    userId, bookingId);
                 return Results.NotFound();
             }
 
             db.Bookings.Remove(booking);
             await db.SaveChangesAsync(ct);
+
+            logger.LogInformation("Booking {BookingId} cancelled by user {UserId}", bookingId, userId);
 
             return Results.NoContent();
         });
