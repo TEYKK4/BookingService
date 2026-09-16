@@ -26,6 +26,7 @@ Open **http://localhost:3000**, register an account, and book a slot.
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | any values; the database is created on first start |
 | `JWT_KEY` | **at least 32 characters**, HMAC-SHA256 refuses anything shorter |
 | `JWT_ISSUER`, `JWT_AUDIENCE` | any strings |
+| `ADMIN_LOGIN`, `ADMIN_PASSWORD` | the first admin account, created at startup — see [Admin](#admin) |
 
 Migrations run automatically on startup, and four rooms are seeded.
 
@@ -48,7 +49,7 @@ simply not use.
 dotnet test RoomBooking.slnx
 ```
 
-47 tests, about 10 seconds. Integration tests start a real PostgreSQL container through
+74 tests, about 15 seconds. Integration tests start a real PostgreSQL container through
 Testcontainers, so Docker has to be running.
 
 ### Migrations
@@ -70,6 +71,11 @@ $env:ConnectionStrings__DefaultConnection = "Host=localhost;Port=5432;Database=<
 
 Nothing is hardcoded in the design-time factory; it reads `appsettings*.json` and the
 environment exactly as the running app does.
+
+One PostgreSQL detail worth knowing: the initial seed inserts rooms with explicit ids,
+which does not advance the identity sequence — the first room created through the API
+would have collided with id 1. The `AddRolesAndRoomStatus` migration moves the sequence
+past the seeded ids with `setval`.
 
 ---
 
@@ -181,6 +187,45 @@ gets the same `401` as a wrong password; returning `400` there would leak the ru
 
 ---
 
+## Admin
+
+Two roles: `User` and `Admin`. The role is a claim in the JWT, so a change takes effect
+when that user next signs in — the same trade-off as "a token cannot be revoked early".
+
+**The first admin comes from configuration.** Set `ADMIN_LOGIN` / `ADMIN_PASSWORD` in
+`.env`; at startup the account is created with the `Admin` role, or an existing account
+with that login is promoted. Idempotent, and the password is never reset for an existing
+account — it is a bootstrap secret, not a reset mechanism. With the variables unset the
+app starts with a warning and no admin.
+
+Admins get a separate panel in the web app and these endpoints, all behind the `Admin`
+policy (`403` for anyone else):
+
+| | | |
+| --- | --- | --- |
+| `GET` | `/api/admin/rooms` | every room, deactivated ones included |
+| `POST` | `/api/admin/rooms` | name, capacity, IANA time zone — `400` names an unknown zone |
+| `PUT` | `/api/admin/rooms/{id}` | `409` when changing the zone of a room with upcoming bookings |
+| `POST` | `/api/admin/rooms/{id}/deactivate`, `…/activate` | hide from users, bring back |
+| `GET` | `/api/admin/bookings?scope=&roomId=` | everyone's bookings, with the owner's login |
+| `DELETE` | `/api/admin/bookings/{id}` | cancel anyone's booking |
+| `GET` | `/api/admin/users` | id, login, role |
+| `PUT` | `/api/admin/users/{id}/role` | `409` when removing your own admin role |
+
+**Rooms are deactivated, never deleted.** Deleting would cascade to every booking ever
+made in the room. A deactivated room disappears from the public list, returns `404` on
+availability and booking, and keeps its history; existing upcoming bookings stay and can
+still be cancelled by their owners.
+
+**Why the zone is locked while bookings are upcoming.** Bookings are stored as UTC
+instants that were valid working hours in the old zone. Move the room to another zone and
+the same instants may land at 03:00 local. Refusing is safer than silently corrupting
+what people already booked.
+
+Every admin action is logged with the admin's user id.
+
+---
+
 ## API
 
 | | | |
@@ -201,8 +246,8 @@ Errors are RFC 9457 problem details; `detail` carries the human-readable reason.
 ## Tests
 
 ```
-Unit          19   validator, token generation, slot rules incl. daylight saving
-Integration   28   auth API, booking API, database constraints
+Unit          20   validators, token generation, slot rules incl. daylight saving
+Integration   54   auth API, booking API, admin API, database constraints
 ```
 
 Integration tests boot the real app with `WebApplicationFactory` against real PostgreSQL
