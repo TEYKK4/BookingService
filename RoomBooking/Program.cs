@@ -2,6 +2,7 @@ using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using RoomBooking.Contracts;
 using RoomBooking.Data;
@@ -30,6 +31,7 @@ if (Encoding.UTF8.GetByteCount(jwtSettings.Key) < 32)
 builder.Services.Configure<JwtSettings>(jwtSection);
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IValidator<CredentialsRequest>, CredentialsValidator>();
+builder.Services.AddScoped<IValidator<SaveRoomRequest>, SaveRoomValidator>();
 
 // The same key signs tokens in /api/auth and verifies them everywhere else.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -47,7 +49,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy(Policies.Admin, policy => policy.RequireRole(nameof(UserRole.Admin))));
+
+builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("Admin"));
 
 builder.Services.AddOpenApi();
 
@@ -67,6 +72,9 @@ using (var scope = app.Services.CreateScope())
     zones.ForEach(timeZoneId => BookingHours.ZoneOf(timeZoneId));
 
     app.Logger.LogInformation("Database migrated; {Count} room time zones validated", zones.Count);
+
+    var adminSettings = scope.ServiceProvider.GetRequiredService<IOptions<AdminSettings>>().Value;
+    await AdminSeeder.EnsureAdminAsync(db, adminSettings, app.Logger);
 }
 
 app.UseExceptionHandler();
@@ -83,6 +91,9 @@ if (app.Environment.IsDevelopment())
 app.MapAuthEndpoints();
 app.MapRoomEndpoints();
 app.MapBookingEndpoints();
+app.MapAdminRoomEndpoints();
+app.MapAdminBookingEndpoints();
+app.MapAdminUserEndpoints();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 

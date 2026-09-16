@@ -13,7 +13,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 
-export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
+type Props = {
+  onSignOut: () => void
+  isAdmin: boolean
+  onOpenAdmin: () => void
+}
+
+export function BookingBoard({ onSignOut, isAdmin, onOpenAdmin }: Props) {
   const [rooms, setRooms] = useState<Room[]>([])
   const [roomId, setRoomId] = useState<number | null>(null)
   const [date, setDate] = useState<string | null>(null)
@@ -118,7 +124,10 @@ export function BookingBoard({ onSignOut }: { onSignOut: () => void }) {
             Hourly slots, 08:00&ndash;19:00 in each room&rsquo;s own time zone
           </p>
         </div>
-        <Button variant="outline" onClick={onSignOut}>Sign out</Button>
+        <div className="flex gap-2">
+          {isAdmin && <Button variant="secondary" onClick={onOpenAdmin}>Admin</Button>}
+          <Button variant="outline" onClick={onSignOut}>Sign out</Button>
+        </div>
       </header>
 
       <Card>

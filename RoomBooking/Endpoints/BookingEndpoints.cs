@@ -30,13 +30,9 @@ public static class BookingEndpoints
                 return Results.Unauthorized();
             }
 
-            // Parsed by hand because minimal APIs bind enums case-sensitively,
-            // and "?scope=past" is what a caller naturally writes.
-            if (!Enum.TryParse<BookingScope>(scope ?? nameof(BookingScope.Upcoming), ignoreCase: true, out var wanted))
+            if (!BookingScopes.TryParse(scope, out var wanted))
             {
-                return Results.Problem(
-                    $"scope must be one of: {string.Join(", ", Enum.GetNames<BookingScope>()).ToLowerInvariant()}.",
-                    statusCode: StatusCodes.Status400BadRequest);
+                return BookingScopes.InvalidScopeProblem();
             }
 
             var now = DateTime.UtcNow;
@@ -71,7 +67,8 @@ public static class BookingEndpoints
 
             var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == request.RoomId, ct);
 
-            if (room is null)
+            // A deactivated room cannot take new bookings; existing ones are untouched.
+            if (room is null || !room.IsActive)
             {
                 return Results.NotFound();
             }

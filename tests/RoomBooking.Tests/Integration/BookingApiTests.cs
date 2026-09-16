@@ -173,7 +173,9 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
     public async Task A_slot_valid_for_a_warsaw_room_is_refused_by_a_new_york_room()
     {
         // Room 4 sits in America/New_York, so Warsaw's 08:00 is the small hours there.
-        var warsawMorning = NextFreeSlot("Europe/Warsaw");
+        // Deliberately the first slot of the day: later Warsaw hours overlap New York's.
+        var warsaw = BookingHours.ZoneOf("Europe/Warsaw");
+        var warsawMorning = BookingHours.SlotsOn(BookingHours.TodayIn(warsaw).AddDays(5), warsaw).First();
 
         var response = await ClientFor(Alice).PostAsJsonAsync("/api/bookings",
             new CreateBookingRequest(4, warsawMorning));
@@ -278,5 +280,34 @@ public class BookingApiTests(PostgresFixture postgres) : IClassFixture<PostgresF
         var booked = slots.ShouldNotBeNull().Single(s => s.SlotStart == slot);
         booked.IsTaken.ShouldBeTrue();
         booked.IsMine.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task A_deactivated_room_is_hidden_and_cannot_be_booked()
+    {
+        // A fresh room rather than one of the seeded four, so no other test is affected.
+        int roomId;
+        await using (var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+                         .UseNpgsql(postgres.ConnectionString).Options))
+        {
+            var room = new RoomBooking.Models.Room
+            {
+                Name = "Storage", Capacity = 1, TimeZoneId = "Europe/Warsaw", IsActive = false,
+            };
+            db.Rooms.Add(room);
+            await db.SaveChangesAsync();
+            roomId = room.Id;
+        }
+
+        var rooms = await ClientFor().GetFromJsonAsync<List<RoomResponse>>("/api/rooms");
+        rooms.ShouldNotBeNull();
+        rooms.ShouldNotContain(r => r.Id == roomId);
+
+        var availability = await ClientFor().GetAsync($"/api/rooms/{roomId}/availability");
+        availability.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var booking = await ClientFor(Alice).PostAsJsonAsync("/api/bookings",
+            new CreateBookingRequest(roomId, NextFreeSlot()));
+        booking.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }
