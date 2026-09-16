@@ -9,6 +9,15 @@ export type Booking = {
   createdAt: string
 }
 
+export type Role = "User" | "Admin"
+export type Me = { id: number; login: string; role: Role }
+
+export type AdminRoom = Room & { isActive: boolean }
+export type SaveRoom = { name: string; capacity: number; timeZoneId: string }
+export type AdminBooking = Booking & { userId: number; userLogin: string }
+export type AdminUser = { id: number; login: string; role: Role }
+export type Scope = "upcoming" | "past" | "all"
+
 const TOKEN_KEY = "roombooking.token"
 
 export const token = {
@@ -73,6 +82,32 @@ export const api = {
     request<Booking[]>(`/bookings/my?scope=${scope}`),
 
   cancel: (bookingId: number) => request<void>(`/bookings/${bookingId}`, { method: "DELETE" }),
+
+  /** Who am I - read from the token on the server, so the client never decodes the JWT. */
+  me: () => request<Me>("/auth/me"),
+
+  admin: {
+    rooms: () => request<AdminRoom[]>("/admin/rooms"),
+
+    createRoom: (room: SaveRoom) =>
+      request<AdminRoom>("/admin/rooms", { method: "POST", body: JSON.stringify(room) }),
+
+    updateRoom: (id: number, room: SaveRoom) =>
+      request<AdminRoom>(`/admin/rooms/${id}`, { method: "PUT", body: JSON.stringify(room) }),
+
+    setRoomActive: (id: number, active: boolean) =>
+      request<AdminRoom>(`/admin/rooms/${id}/${active ? "activate" : "deactivate"}`, { method: "POST" }),
+
+    bookings: (scope: Scope = "upcoming", roomId?: number) =>
+      request<AdminBooking[]>(`/admin/bookings?scope=${scope}${roomId ? `&roomId=${roomId}` : ""}`),
+
+    cancelBooking: (id: number) => request<void>(`/admin/bookings/${id}`, { method: "DELETE" }),
+
+    users: () => request<AdminUser[]>("/admin/users"),
+
+    setRole: (id: number, role: Role) =>
+      request<AdminUser>(`/admin/users/${id}/role`, { method: "PUT", body: JSON.stringify({ role }) }),
+  },
 }
 
 /**
