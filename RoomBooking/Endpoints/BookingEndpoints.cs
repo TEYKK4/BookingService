@@ -125,13 +125,13 @@ public static class BookingEndpoints
                                               { SqlState: PostgresErrorCodes.UniqueViolation })
             {
                 // Someone booked the same slot between the check above and this insert.
-                logger.LogWarning("Race lost on room {RoomId} at {SlotStart}", room.Id, slotStart);
+                logger.LogWarning("Race lost on room {RoomId} at {SlotStart:O}", room.Id, slotStart);
 
                 return Results.Problem("That slot is already booked.", statusCode: StatusCodes.Status409Conflict);
             }
 
             logger.LogInformation(
-                "Booking {BookingId} created: room {RoomId} at {SlotStart} by user {UserId}",
+                "Booking {BookingId} created: room {RoomId} at {SlotStart:O} by user {UserId}",
                 booking.Id, room.Id, slotStart, userId);
 
             return Results.Created(
