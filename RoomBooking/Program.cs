@@ -31,6 +31,7 @@ if (Encoding.UTF8.GetByteCount(jwtSettings.Key) < 32)
 builder.Services.Configure<JwtSettings>(jwtSection);
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IValidator<CredentialsRequest>, CredentialsValidator>();
+builder.Services.AddScoped<IValidator<SaveRoomRequest>, SaveRoomValidator>();
 
 // The same key signs tokens in /api/auth and verifies them everywhere else.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -90,6 +91,7 @@ if (app.Environment.IsDevelopment())
 app.MapAuthEndpoints();
 app.MapRoomEndpoints();
 app.MapBookingEndpoints();
+app.MapAdminRoomEndpoints();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 

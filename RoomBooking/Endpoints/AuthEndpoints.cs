@@ -30,9 +30,7 @@ public static class AuthEndpoints
 
             if (!validation.IsValid)
             {
-                return Results.Problem(
-                    string.Join(", ", validation.Errors.Select(e => e.ErrorMessage)),
-                    statusCode: StatusCodes.Status400BadRequest);
+                return validation.ToProblem();
             }
 
             // Friendly path. It does NOT prevent two accounts with one login on its
