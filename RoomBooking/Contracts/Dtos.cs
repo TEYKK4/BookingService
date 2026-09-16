@@ -18,6 +18,15 @@ public record AdminRoomResponse(int Id, string Name, int Capacity, string TimeZo
 
 public record SaveRoomRequest(string Name, int Capacity, string TimeZoneId);
 
+/// <summary>A booking as an admin sees it: whose it is, not just where and when.</summary>
+public record AdminBookingResponse(
+    int Id, int RoomId, string RoomName, string TimeZoneId, DateTime SlotStart,
+    int UserId, string UserLogin, DateTime CreatedAt);
+
+public record AdminUserResponse(int Id, string Login, string Role);
+
+public record SetRoleRequest(string Role);
+
 public record BookingResponse(
     int Id, int RoomId, string RoomName, string TimeZoneId, DateTime SlotStart, DateTime CreatedAt);
 

@@ -92,6 +92,8 @@ app.MapAuthEndpoints();
 app.MapRoomEndpoints();
 app.MapBookingEndpoints();
 app.MapAdminRoomEndpoints();
+app.MapAdminBookingEndpoints();
+app.MapAdminUserEndpoints();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 
